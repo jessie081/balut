@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: balut-web
+    runtime: node
+    rootDir: web
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/balut.db
+    disk:
+      name: balut-data
+      mountPath: /var/data
+      sizeGB: 1

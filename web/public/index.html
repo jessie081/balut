@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#7a4a14" />
+  <title>Balut · Sales & Inventory</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='34' rx='20' ry='26' fill='%23fff7e0' stroke='%237a4a14' stroke-width='3'/%3E%3Ccircle cx='32' cy='36' r='8' fill='%23f5b400'/%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            yolk:  { 50:'#fff8e1', 100:'#ffefb8', 200:'#ffe48a', 300:'#ffd75a', 400:'#fbc534', 500:'#f5b400', 600:'#d99500', 700:'#a96f00', 800:'#7a4a14', 900:'#553208' },
+            cream: { 50:'#fffaf0', 100:'#fdf3df', 200:'#f7e7c4' }
+          },
+          fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
+          boxShadow: { card: '0 1px 2px rgba(85,50,8,.06), 0 8px 24px -12px rgba(85,50,8,.18)' }
+        }
+      }
+    };
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+</head>
+<body class="h-full bg-cream-50 text-yolk-900 font-sans antialiased">
+  <div class="min-h-full flex flex-col md:flex-row">
+    <!-- Sidebar / top bar -->
+    <aside class="md:w-60 md:min-h-screen bg-yolk-800 text-cream-50 md:p-6 p-3 flex md:flex-col items-center md:items-stretch gap-2 md:gap-1 sticky top-0 z-20">
+      <div class="flex items-center gap-2 md:mb-8">
+        <div class="w-9 h-9 rounded-full bg-yolk-500 grid place-items-center shadow-card">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 text-yolk-900" fill="currentColor"><path d="M12 2c-4 0-7 5-7 11a7 7 0 0 0 14 0c0-6-3-11-7-11z"/></svg>
+        </div>
+        <div class="leading-tight">
+          <div class="font-bold text-lg">Balut</div>
+          <div class="text-xs text-yolk-200/80 hidden md:block">Sales & Inventory</div>
+        </div>
+      </div>
+      <nav id="nav" class="flex md:flex-col gap-1 md:gap-1 ml-auto md:ml-0 overflow-x-auto">
+        <button data-tab="dashboard" class="nav-btn">Dashboard</button>
+        <button data-tab="sell"      class="nav-btn">Sell</button>
+        <button data-tab="inventory" class="nav-btn">Inventory</button>
+        <button data-tab="history"   class="nav-btn">History</button>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 p-4 md:p-8 max-w-6xl w-full mx-auto">
+      <!-- Dashboard -->
+      <section id="tab-dashboard" class="tab space-y-6">
+        <header class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold">Dashboard</h1>
+            <p class="text-yolk-700/70 text-sm">Sales overview at a glance</p>
+          </div>
+          <button id="refresh-dash" class="btn-ghost">↻ Refresh</button>
+        </header>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="card">
+            <div class="card-label">Today</div>
+            <div class="card-value"><span id="stat-today">₱0.00</span></div>
+            <div class="card-sub" id="stat-today-units">0 units · 0 sales</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Last 7 days</div>
+            <div class="card-value"><span id="stat-week">₱0.00</span></div>
+            <div class="card-sub" id="stat-week-units">0 units · 0 sales</div>
+          </div>
+          <div class="card">
+            <div class="card-label">This month</div>
+            <div class="card-value"><span id="stat-month">₱0.00</span></div>
+            <div class="card-sub" id="stat-month-units">0 units · 0 sales</div>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-4">
+          <div class="card lg:col-span-2">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-semibold">Last 7 days revenue</h2>
+              <span class="text-xs text-yolk-700/60">in ₱</span>
+            </div>
+            <canvas id="chart-week" height="120"></canvas>
+          </div>
+          <div class="card">
+            <h2 class="font-semibold mb-3">Low stock <span class="text-xs text-yolk-700/60">(&lt; 5)</span></h2>
+            <ul id="low-stock" class="divide-y divide-cream-200 text-sm">
+              <li class="py-3 text-yolk-700/60">Loading…</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sell -->
+      <section id="tab-sell" class="tab hidden space-y-6">
+        <header>
+          <h1 class="text-2xl md:text-3xl font-bold">Record a sale</h1>
+          <p class="text-yolk-700/70 text-sm">Stock is reduced automatically.</p>
+        </header>
+
+        <form id="sale-form" class="card grid md:grid-cols-2 gap-4 max-w-3xl">
+          <label class="field md:col-span-2">
+            <span>Product</span>
+            <select id="sale-product" required></select>
+          </label>
+          <label class="field">
+            <span>Quantity</span>
+            <input id="sale-qty" type="number" min="1" step="1" value="1" required />
+            <small id="sale-stock-hint" class="hint"></small>
+          </label>
+          <label class="field">
+            <span>Unit price (₱)</span>
+            <input id="sale-price" type="number" min="0" step="0.01" required />
+          </label>
+          <label class="field md:col-span-2">
+            <span>Customer (optional)</span>
+            <input id="sale-customer" type="text" maxlength="80" placeholder="—" />
+          </label>
+          <div class="md:col-span-2 flex items-center justify-between gap-3 pt-2 border-t border-cream-200">
+            <div class="text-lg">Total: <strong id="sale-total">₱0.00</strong></div>
+            <div class="flex gap-2">
+              <button type="reset" class="btn-ghost">Clear</button>
+              <button type="submit" class="btn-primary">Record sale</button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- Inventory -->
+      <section id="tab-inventory" class="tab hidden space-y-6">
+        <header class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold">Inventory</h1>
+            <p class="text-yolk-700/70 text-sm">Manage products and stock levels.</p>
+          </div>
+          <button id="add-product-btn" class="btn-primary">+ Add product</button>
+        </header>
+
+        <div class="card overflow-x-auto p-0">
+          <table class="w-full text-sm">
+            <thead class="bg-cream-100 text-yolk-800">
+              <tr>
+                <th class="th">Product</th>
+                <th class="th text-right">Price (₱)</th>
+                <th class="th text-right">Stock</th>
+                <th class="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="inv-body" class="divide-y divide-cream-200">
+              <tr><td colspan="4" class="td text-yolk-700/60">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section id="tab-history" class="tab hidden space-y-6">
+        <header class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold">Sales history</h1>
+            <p class="text-yolk-700/70 text-sm">Most recent first.</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <select id="hist-range" class="input">
+              <option value="all">All time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 days</option>
+              <option value="month">This month</option>
+            </select>
+            <a id="hist-export" class="btn-ghost" href="/api/sales/export.csv">⬇ Export CSV</a>
+          </div>
+        </header>
+
+        <div class="card overflow-x-auto p-0">
+          <table class="w-full text-sm">
+            <thead class="bg-cream-100 text-yolk-800">
+              <tr>
+                <th class="th">Date</th>
+                <th class="th">Product</th>
+                <th class="th text-right">Qty</th>
+                <th class="th text-right">Unit ₱</th>
+                <th class="th text-right">Total ₱</th>
+                <th class="th">Customer</th>
+              </tr>
+            </thead>
+            <tbody id="hist-body" class="divide-y divide-cream-200">
+              <tr><td colspan="6" class="td text-yolk-700/60">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Product modal -->
+  <dialog id="product-dialog" class="modal">
+    <form method="dialog" id="product-form" class="card w-[min(92vw,420px)] space-y-4">
+      <h2 id="product-dialog-title" class="text-lg font-semibold">Add product</h2>
+      <input type="hidden" id="product-id" />
+      <label class="field">
+        <span>Name</span>
+        <input id="product-name" type="text" required maxlength="60" />
+      </label>
+      <label class="field">
+        <span>Price (₱)</span>
+        <input id="product-price" type="number" min="0" step="0.01" required />
+      </label>
+      <label class="field">
+        <span>Stock</span>
+        <input id="product-stock" type="number" min="0" step="1" required />
+      </label>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" class="btn-ghost" data-close>Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Toasts -->
+  <div id="toasts" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

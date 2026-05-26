@@ -1,0 +1,133 @@
+/* Small handcrafted layer that pairs with Tailwind via @apply at runtime is not
+   available with the CDN, so we use plain CSS that mirrors the palette. */
+
+:root {
+  --yolk-50:#fff8e1;  --yolk-100:#ffefb8; --yolk-200:#ffe48a; --yolk-300:#ffd75a;
+  --yolk-400:#fbc534; --yolk-500:#f5b400; --yolk-600:#d99500; --yolk-700:#a96f00;
+  --yolk-800:#7a4a14; --yolk-900:#553208;
+  --cream-50:#fffaf0; --cream-100:#fdf3df; --cream-200:#f7e7c4;
+}
+
+html, body { height: 100%; }
+body { font-family: 'Inter', system-ui, sans-serif; }
+
+/* Nav */
+.nav-btn {
+  padding: .55rem .9rem;
+  border-radius: .6rem;
+  font-weight: 500;
+  color: #fff7e0;
+  white-space: nowrap;
+  transition: background-color .18s ease, color .18s ease, transform .12s ease;
+}
+.nav-btn:hover { background: rgba(255,255,255,.08); }
+.nav-btn:active { transform: scale(.97); }
+.nav-btn.active { background: var(--yolk-500); color: var(--yolk-900); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+
+/* Tabs / page transition */
+.tab {
+  animation: tab-in .22s ease-out both;
+}
+@keyframes tab-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab { animation: none; }
+  .toast { animation: none; }
+}
+
+/* Cards */
+.card {
+  background: #fff;
+  border: 1px solid var(--cream-200);
+  border-radius: .9rem;
+  padding: 1.1rem 1.2rem;
+  box-shadow: 0 1px 2px rgba(85,50,8,.06), 0 8px 24px -12px rgba(85,50,8,.18);
+}
+.card-label { font-size: .8rem; color: var(--yolk-700); text-transform: uppercase; letter-spacing: .04em; }
+.card-value { font-size: 1.9rem; font-weight: 700; margin-top: .25rem; color: var(--yolk-900); }
+.card-sub   { font-size: .85rem; color: var(--yolk-700); margin-top: .25rem; }
+
+/* Tables */
+.th { text-align: left; padding: .75rem 1rem; font-weight: 600; font-size: .8rem; }
+.td { padding: .75rem 1rem; }
+
+/* Forms */
+.field { display: flex; flex-direction: column; gap: .35rem; }
+.field > span { font-size: .85rem; color: var(--yolk-800); font-weight: 500; }
+.field input, .field select, .input {
+  border: 1px solid var(--cream-200);
+  background: #fff;
+  border-radius: .55rem;
+  padding: .55rem .75rem;
+  font: inherit;
+  color: var(--yolk-900);
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field input:focus, .field select:focus, .input:focus {
+  border-color: var(--yolk-500);
+  box-shadow: 0 0 0 3px rgba(245,180,0,.25);
+}
+.hint { color: var(--yolk-700); font-size: .75rem; }
+
+/* Buttons */
+.btn-primary {
+  background: var(--yolk-500);
+  color: var(--yolk-900);
+  font-weight: 600;
+  padding: .55rem 1rem;
+  border-radius: .6rem;
+  border: 1px solid var(--yolk-600);
+  transition: filter .15s ease, transform .05s ease;
+}
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--yolk-800);
+  font-weight: 500;
+  padding: .5rem .85rem;
+  border-radius: .6rem;
+  border: 1px solid var(--cream-200);
+}
+.btn-ghost:hover { background: var(--cream-100); }
+
+.btn-danger {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  font-weight: 500;
+  padding: .35rem .7rem;
+  border-radius: .5rem;
+}
+.btn-danger:hover { background: #fecaca; }
+
+/* Modal */
+.modal {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.modal::backdrop { background: rgba(85,50,8,.45); backdrop-filter: blur(2px); }
+
+/* Toasts */
+.toast {
+  background: #fff;
+  border: 1px solid var(--cream-200);
+  border-left: 4px solid var(--yolk-500);
+  padding: .7rem .9rem;
+  border-radius: .55rem;
+  min-width: 220px;
+  box-shadow: 0 8px 24px -10px rgba(0,0,0,.2);
+  animation: toast-in .2s ease-out;
+}
+.toast.error { border-left-color: #dc2626; }
+.toast.success { border-left-color: #16a34a; }
+@keyframes toast-in { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
+
+/* Loading row */
+.skeleton { color: var(--yolk-700); opacity: .6; }

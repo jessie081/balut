@@ -1,0 +1,41 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Egg shape centered in 108x108.
+         Safe zone is 66x66 (from 21 to 87). -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28
+                   C44,28 34,42 34,58
+                   C34,73 42,83 54,83
+                   C66,83 74,73 74,58
+                   C74,42 64,28 54,28 Z" />
+
+    <!-- Management/Inventory Symbol (List) -->
+    <!-- Checklist item 1 -->
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M48,45 L46,47 L43,44 L41,46 L46,51 L50,47 Z" />
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M52,47 L65,47 L65,49 L52,49 Z" />
+
+    <!-- Checklist item 2 -->
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M48,55 L46,57 L43,54 L41,56 L46,61 L50,57 Z" />
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M52,57 L65,57 L65,59 L52,59 Z" />
+
+    <!-- Checklist item 3 -->
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M48,65 L46,67 L43,64 L41,66 L46,71 L50,67 Z" />
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M52,67 L65,67 L65,69 L52,69 Z" />
+
+</vector>

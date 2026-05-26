@@ -1,0 +1,4 @@
+<resources>
+
+    <style name="Theme.Balut" parent="Theme.MaterialComponents.Light" />
+</resources>

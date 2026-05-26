@@ -1,0 +1,16 @@
+services:
+  balut:
+    build: .
+    container_name: balut-web
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_PATH: /app/data/balut.db
+    volumes:
+      - balut-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  balut-data:
