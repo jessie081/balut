@@ -1,8 +1,4 @@
--- Balut Web App schema
--- SQLite
-
-PRAGMA foreign_keys = ON;
-PRAGMA journal_mode = WAL;
+-- Balut Web App schema (libsql / SQLite compatible)
 
 CREATE TABLE IF NOT EXISTS products (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,7 +11,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS sales (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   product_id    INTEGER NOT NULL,
-  product_name  TEXT    NOT NULL,        -- snapshot, survives product deletion
+  product_name  TEXT    NOT NULL,
   quantity      INTEGER NOT NULL CHECK (quantity > 0),
   unit_price    REAL    NOT NULL CHECK (unit_price >= 0),
   total         REAL    NOT NULL CHECK (total >= 0),

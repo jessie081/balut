@@ -4,10 +4,11 @@ A clean web rewrite of the original Android Balut app. Same four-screen concept
 (Dashboard, Sell, Inventory, History) running anywhere a browser can reach
 your server.
 
-- **Backend**: Node.js + Express + better-sqlite3 (single file DB)
+- **Backend**: Node.js + Express + libsql client (works with a local SQLite
+  file in dev and with hosted libsql/Turso in production – no native build).
 - **Frontend**: HTML + Tailwind (CDN) + Chart.js (CDN), zero build step
 - **Palette**: warm egg-yolk yellow / brown / cream
-- **Deploy**: `npm start`, Docker, or Render/Railway
+- **Deploy**: Vercel + Turso, Render with persistent disk, Docker, or local
 
 ## Quick start (local)
 
@@ -18,9 +19,8 @@ npm run seed   # optional: pre-populates Balut, Penoy, Aboy
 npm start
 ```
 
-Open <http://localhost:3000>.
-
-The SQLite file is created at `web/data/balut.db` automatically on first run.
+Open <http://localhost:3000>. Local mode stores data at `web/data/balut.db`
+(automatically created).
 
 ## API
 
@@ -56,19 +56,49 @@ docker compose up --build
 
 Data persists in the `balut-data` named volume.
 
+## Deploy to Vercel (with Turso)
+
+Vercel runs this app as a serverless function (`api/index.js` re-exports the
+Express app). Because functions are stateless, the database lives on Turso
+(hosted libsql, free tier).
+
+1. Create a Turso DB and grab the credentials:
+   ```bash
+   curl -sSfL https://get.tur.so/install.sh | bash   # one-time
+   turso auth signup
+   turso db create balut
+   turso db show balut --url           # → libsql://...turso.io
+   turso db tokens create balut        # → eyJ...
+   ```
+2. Run the schema & seed once against the hosted DB (any of these work):
+   ```bash
+   # Option A – using the Turso shell
+   turso db shell balut < web/db/schema.sql
+
+   # Option B – locally pointing at Turso
+   cd web
+   TURSO_DATABASE_URL=libsql://...turso.io TURSO_AUTH_TOKEN=eyJ... npm run init-db
+   TURSO_DATABASE_URL=libsql://...turso.io TURSO_AUTH_TOKEN=eyJ... npm run seed
+   ```
+3. Deploy:
+   ```bash
+   npm i -g vercel
+   cd web
+   vercel              # link the project (first time)
+   vercel env add TURSO_DATABASE_URL    # paste the libsql:// URL (all envs)
+   vercel env add TURSO_AUTH_TOKEN      # paste the token (all envs)
+   vercel --prod
+   ```
+
+   Or via the dashboard: **Add New… → Project → Import** the GitHub repo,
+   set **Root Directory** to `web`, add the two env vars under
+   **Settings → Environment Variables**, then **Deploy**.
+
 ## Deploy to Render
 
-The repo includes `web/render.yaml` (a Render Blueprint). After pushing to
-GitHub:
-
-1. Render → New → Blueprint → pick this repo.
-2. Render reads `web/render.yaml`, builds `web/`, and attaches a 1 GB persistent
-   disk at `/var/data` so the SQLite file survives redeploys.
-3. Visit the assigned URL.
-
-For Railway, point the service at the `web/` directory, set the start command
-to `node server.js`, and add a volume mounted at `/app/data` (then set
-`DB_PATH=/app/data/balut.db`).
+The repo includes `web/render.yaml`. Push to GitHub, then in Render:
+**New → Blueprint → pick this repo**. Render uses the included persistent
+1 GB disk for the SQLite file – no Turso needed there.
 
 ## Validation rules
 

@@ -5,12 +5,11 @@ const db = require('../db');
 
 const router = express.Router();
 
-const selectAll  = db.prepare('SELECT id, name, price, stock FROM products ORDER BY name COLLATE NOCASE');
-const selectById = db.prepare('SELECT id, name, price, stock FROM products WHERE id = ?');
-const insertOne  = db.prepare('INSERT INTO products (name, price, stock) VALUES (?, ?, ?)');
-const updateOne  = db.prepare('UPDATE products SET name = ?, price = ?, stock = ? WHERE id = ?');
-const deleteOne  = db.prepare('DELETE FROM products WHERE id = ?');
-const countSales = db.prepare('SELECT COUNT(*) AS c FROM sales WHERE product_id = ?');
+function httpError(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  return e;
+}
 
 function validate({ name, price, stock }, { partial = false } = {}) {
   if (!partial || name !== undefined) {
@@ -26,42 +25,41 @@ function validate({ name, price, stock }, { partial = false } = {}) {
   }
 }
 
-function httpError(status, message) {
-  const e = new Error(message);
-  e.status = status;
-  return e;
-}
-
-router.get('/', (_req, res) => {
-  res.json(selectAll.all());
+router.get('/', async (_req, res, next) => {
+  try {
+    const rows = await db.all('SELECT id, name, price, stock FROM products ORDER BY name COLLATE NOCASE');
+    res.json(rows);
+  } catch (e) { next(e); }
 });
 
-router.get('/:id', (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
-    const row = selectById.get(Number(req.params.id));
+    const row = await db.get('SELECT id, name, price, stock FROM products WHERE id = ?', Number(req.params.id));
     if (!row) throw httpError(404, 'product not found');
     res.json(row);
   } catch (e) { next(e); }
 });
 
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     validate(req.body);
     const { name, price, stock } = req.body;
-    const info = insertOne.run(name.trim(), Number(price), Number(stock));
-    res.status(201).json(selectById.get(info.lastInsertRowid));
+    const info = await db.run(
+      'INSERT INTO products (name, price, stock) VALUES (?, ?, ?)',
+      name.trim(), Number(price), Number(stock)
+    );
+    const row = await db.get('SELECT id, name, price, stock FROM products WHERE id = ?', info.lastInsertRowid);
+    res.status(201).json(row);
   } catch (e) {
-    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return next(httpError(409, 'a product with that name already exists'));
-    }
+    if (isUniqueViolation(e)) return next(httpError(409, 'a product with that name already exists'));
     next(e);
   }
 });
 
-router.put('/:id', (req, res, next) => {
+router.put('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const existing = selectById.get(id);
+    const existing = await db.get('SELECT id, name, price, stock FROM products WHERE id = ?', id);
     if (!existing) throw httpError(404, 'product not found');
 
     const merged = {
@@ -70,29 +68,35 @@ router.put('/:id', (req, res, next) => {
       stock: req.body.stock ?? existing.stock
     };
     validate(merged);
-    updateOne.run(merged.name.trim(), Number(merged.price), Number(merged.stock), id);
-    res.json(selectById.get(id));
+    await db.run(
+      'UPDATE products SET name = ?, price = ?, stock = ? WHERE id = ?',
+      merged.name.trim(), Number(merged.price), Number(merged.stock), id
+    );
+    res.json(await db.get('SELECT id, name, price, stock FROM products WHERE id = ?', id));
   } catch (e) {
-    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return next(httpError(409, 'a product with that name already exists'));
-    }
+    if (isUniqueViolation(e)) return next(httpError(409, 'a product with that name already exists'));
     next(e);
   }
 });
 
-router.delete('/:id', (req, res, next) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const existing = selectById.get(id);
+    const existing = await db.get('SELECT id FROM products WHERE id = ?', id);
     if (!existing) throw httpError(404, 'product not found');
 
-    const sales = countSales.get(id).c;
-    if (sales > 0) {
-      throw httpError(409, `cannot delete: ${sales} sale(s) exist for this product`);
-    }
-    deleteOne.run(id);
+    const row = await db.get('SELECT COUNT(*) AS c FROM sales WHERE product_id = ?', id);
+    const sales = Number(row.c);
+    if (sales > 0) throw httpError(409, `cannot delete: ${sales} sale(s) exist for this product`);
+
+    await db.run('DELETE FROM products WHERE id = ?', id);
     res.status(204).end();
   } catch (e) { next(e); }
 });
+
+function isUniqueViolation(e) {
+  const msg = String(e?.message || '');
+  return /UNIQUE/i.test(msg) || e?.code === 'SQLITE_CONSTRAINT_UNIQUE';
+}
 
 module.exports = router;

@@ -1,5 +1,12 @@
 'use strict';
 
-// Standalone DB initialiser. Safe to run multiple times.
-require('../db');
-console.log('Database initialised.');
+const db = require('../db');
+
+(async () => {
+  // First call to any db method will run the schema.
+  await db.all('SELECT 1');
+  console.log('Database initialised at', db.name);
+})().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -1,23 +1,20 @@
 'use strict';
 
-// Optional seed data – mirrors the original Balut MVP defaults.
 const db = require('../db');
 
-const count = db.prepare('SELECT COUNT(*) AS c FROM products').get().c;
-if (count > 0) {
-  console.log(`Skipping seed – ${count} product(s) already present.`);
-  process.exit(0);
-}
-
-const insert = db.prepare(
-  'INSERT INTO products (name, price, stock) VALUES (?, ?, ?)'
-);
-
-const seed = db.transaction(() => {
-  insert.run('Balut', 20, 100);
-  insert.run('Penoy', 15, 80);
-  insert.run('Aboy',  10, 50);
+(async () => {
+  const row = await db.get('SELECT COUNT(*) AS c FROM products');
+  if (Number(row.c) > 0) {
+    console.log(`Skipping seed – ${row.c} product(s) already present.`);
+    return;
+  }
+  await db.transaction(async (tx) => {
+    await tx.run('INSERT INTO products (name, price, stock) VALUES (?, ?, ?)', 'Balut', 20, 100);
+    await tx.run('INSERT INTO products (name, price, stock) VALUES (?, ?, ?)', 'Penoy', 15, 80);
+    await tx.run('INSERT INTO products (name, price, stock) VALUES (?, ?, ?)', 'Aboy',  10, 50);
+  });
+  console.log('Seeded 3 products: Balut, Penoy, Aboy.');
+})().catch(err => {
+  console.error(err);
+  process.exit(1);
 });
-
-seed();
-console.log('Seeded 3 products: Balut, Penoy, Aboy.');

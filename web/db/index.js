@@ -1,67 +1,89 @@
 'use strict';
 
-// Uses Node's built-in SQLite (node:sqlite, stable in Node 22.5+ / 24).
-// No native compilation, no Python toolchain required.
-
-// Silence the "SQLite is experimental" warning emitted by node:sqlite.
-process.on('warning', (w) => {
-  if (w.name === 'ExperimentalWarning' && /SQLite/i.test(w.message)) return;
-  // eslint-disable-next-line no-console
-  console.warn(w);
-});
+// Database driver: @libsql/client.
+// - Local dev:  uses file:./data/balut.db (no auth token).
+// - Production: set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN (works on Vercel /
+//   any serverless platform because libsql speaks HTTP).
 
 const fs = require('fs');
 const path = require('path');
-const { DatabaseSync } = require('node:sqlite');
+const { createClient } = require('@libsql/client');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'balut.db');
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+let url, authToken;
+if (process.env.TURSO_DATABASE_URL) {
+  url = process.env.TURSO_DATABASE_URL;
+  authToken = process.env.TURSO_AUTH_TOKEN;
+} else {
+  const localPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'balut.db');
+  fs.mkdirSync(path.dirname(localPath), { recursive: true });
+  url = 'file:' + localPath;
+}
 
-const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL;');
-db.exec('PRAGMA foreign_keys = ON;');
+const client = createClient({ url, authToken });
 
-const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-db.exec(schema);
+// Lazy schema init so cold serverless invocations stay fast.
+const SCHEMA_SQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+let initPromise;
+function ensureInit() {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const sql = SCHEMA_SQL
+        .split('\n')
+        .filter(line => !line.trim().startsWith('--'))
+        .join('\n');
+      const statements = sql
+        .split(';')
+        .map(s => s.trim())
+        .filter(Boolean);
+      for (const stmt of statements) {
+        await client.execute(stmt);
+      }
+    })();
+  }
+  return initPromise;
+}
 
-// ---- better-sqlite3-compatible thin wrapper -------------------------------
-// Lets the existing route code keep using db.prepare(...).run|.get|.all and
-// db.transaction(fn) without changes.
-
-function wrapStatement(stmt) {
+function toRunResult(r) {
   return {
-    run(...args) {
-      const r = stmt.run(...args);
-      // node:sqlite returns { lastInsertRowid: bigint, changes: bigint }
-      return {
-        changes: Number(r.changes ?? 0),
-        lastInsertRowid: r.lastInsertRowid !== undefined ? Number(r.lastInsertRowid) : undefined
-      };
-    },
-    get(...args) { return stmt.get(...args); },
-    all(...args) { return stmt.all(...args); }
+    changes: Number(r.rowsAffected ?? 0),
+    lastInsertRowid: r.lastInsertRowid != null ? Number(r.lastInsertRowid) : undefined
   };
 }
 
-const wrapped = {
-  name: DB_PATH,
-  prepare(sql) { return wrapStatement(db.prepare(sql)); },
-  exec(sql)    { return db.exec(sql); },
-  pragma(s)    { return db.exec('PRAGMA ' + s + ';'); },
-  transaction(fn) {
-    return (...args) => {
-      db.exec('BEGIN');
-      try {
-        const result = fn(...args);
-        db.exec('COMMIT');
-        return result;
-      } catch (e) {
-        try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }
-        throw e;
-      }
-    };
-  },
-  close() { db.close(); }
-};
+async function run(sql, ...args) {
+  await ensureInit();
+  return toRunResult(await client.execute({ sql, args }));
+}
 
-module.exports = wrapped;
+async function get(sql, ...args) {
+  await ensureInit();
+  const r = await client.execute({ sql, args });
+  return r.rows[0];
+}
+
+async function all(sql, ...args) {
+  await ensureInit();
+  const r = await client.execute({ sql, args });
+  return r.rows;
+}
+
+// transaction(async tx => { ... }) — tx exposes run/get/all bound to the txn.
+async function transaction(fn) {
+  await ensureInit();
+  const tx = await client.transaction('write');
+  try {
+    const txApi = {
+      async run(sql, ...args) { return toRunResult(await tx.execute({ sql, args })); },
+      async get(sql, ...args) { const r = await tx.execute({ sql, args }); return r.rows[0]; },
+      async all(sql, ...args) { const r = await tx.execute({ sql, args }); return r.rows; }
+    };
+    const result = await fn(txApi);
+    await tx.commit();
+    return result;
+  } catch (e) {
+    try { await tx.rollback(); } catch (_) { /* ignore */ }
+    throw e;
+  }
+}
+
+module.exports = { run, get, all, transaction, name: url };
