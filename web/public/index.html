@@ -62,35 +62,50 @@
         </header>
 
         <div class="stat-cards">
-          <div class="card">
-            <div class="card-label">Today</div>
-            <div class="card-value"><span id="stat-today" title="">₱0.00</span></div>
-            <div class="card-sub" id="stat-today-units">0 units · 0 sales</div>
+          <div class="card stat-card-loading" id="card-today">
+            <span class="skel skel-label"></span>
+            <span class="skel skel-value"></span>
+            <span class="skel skel-sub"></span>
+            <div class="card-label" style="display:none">Today</div>
+            <div class="card-value"><span id="stat-today" title=""></span></div>
+            <div class="card-sub" id="stat-today-units"></div>
           </div>
-          <div class="card">
-            <div class="card-label">Last 7 days</div>
-            <div class="card-value"><span id="stat-week" title="">₱0.00</span></div>
-            <div class="card-sub" id="stat-week-units">0 units · 0 sales</div>
+          <div class="card stat-card-loading" id="card-week">
+            <span class="skel skel-label"></span>
+            <span class="skel skel-value"></span>
+            <span class="skel skel-sub"></span>
+            <div class="card-label" style="display:none">Last 7 days</div>
+            <div class="card-value"><span id="stat-week" title=""></span></div>
+            <div class="card-sub" id="stat-week-units"></div>
           </div>
-          <div class="card">
-            <div class="card-label">This month</div>
-            <div class="card-value"><span id="stat-month" title="">₱0.00</span></div>
-            <div class="card-sub" id="stat-month-units">0 units · 0 sales</div>
+          <div class="card stat-card-loading" id="card-month">
+            <span class="skel skel-label"></span>
+            <span class="skel skel-value"></span>
+            <span class="skel skel-sub"></span>
+            <div class="card-label" style="display:none">This month</div>
+            <div class="card-value"><span id="stat-month" title=""></span></div>
+            <div class="card-sub" id="stat-month-units"></div>
           </div>
         </div>
 
         <div class="grid lg:grid-cols-3 gap-4">
-          <div class="card lg:col-span-2">
+          <div class="card lg:col-span-2" style="position:relative">
+            <div id="chart-overlay" class="refresh-overlay" style="display:none">
+              <div class="spinner"></div>
+            </div>
             <div class="flex items-center justify-between mb-3">
               <h2 class="font-semibold">Last 7 days revenue</h2>
               <span class="text-xs text-yolk-700/60">in ₱</span>
             </div>
-            <canvas id="chart-week" height="120"></canvas>
+            <div id="chart-skeleton" class="skel skel-bar"></div>
+            <canvas id="chart-week" height="120" style="display:none"></canvas>
           </div>
           <div class="card">
             <h2 class="font-semibold mb-3">Low stock <span class="text-xs text-yolk-700/60">(&lt; 5)</span></h2>
             <ul id="low-stock" class="divide-y divide-cream-200 text-sm">
-              <li class="py-3 text-yolk-700/60">Loading…</li>
+              <li class="py-2"><span class="skel skel-line" style="width:80%"></span></li>
+              <li class="py-2"><span class="skel skel-line" style="width:60%"></span></li>
+              <li class="py-2"><span class="skel skel-line" style="width:70%"></span></li>
             </ul>
           </div>
         </div>

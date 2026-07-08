@@ -11,7 +11,7 @@
 html, body { height: 100%; }
 body { font-family: 'Inter', system-ui, sans-serif; }
 
-/* Nav */
+/* ── Nav ────────────────────────────────────────────────── */
 .nav-btn {
   padding: .55rem .9rem;
   border-radius: .6rem;
@@ -20,34 +20,28 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   white-space: nowrap;
   transition: background-color .18s ease, color .18s ease, transform .12s ease;
 }
-.nav-btn:hover { background: rgba(255,255,255,.08); }
+.nav-btn:hover  { background: rgba(255,255,255,.08); }
 .nav-btn:active { transform: scale(.97); }
 .nav-btn.active { background: var(--yolk-500); color: var(--yolk-900); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
 
-/* Tabs / page transition */
-.tab {
-  animation: tab-in .22s ease-out both;
-}
+/* ── Tab page transition ────────────────────────────────── */
+.tab { animation: tab-in .22s ease-out both; }
 @keyframes tab-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: none; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .tab { animation: none; }
-  .toast { animation: none; }
-}
 
-/* Cards */
+/* ── Cards ──────────────────────────────────────────────── */
 .card {
   background: #fff;
   border: 1px solid var(--cream-200);
   border-radius: .9rem;
   padding: 1.1rem 1.2rem;
   box-shadow: 0 1px 2px rgba(85,50,8,.06), 0 8px 24px -12px rgba(85,50,8,.18);
-  /* Prevent any child from punching through */
   overflow: hidden;
   min-width: 0;
 }
+
 .card-label {
   font-size: .8rem;
   color: var(--yolk-700);
@@ -55,24 +49,20 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   letter-spacing: .04em;
 }
 
-/* Stat card value – clamp font size, always compact, never truncates */
+/* Stat card value – compact, never truncates */
 .card-value {
   font-size: clamp(1rem, 4vw, 1.9rem);
   font-weight: 700;
   margin-top: .25rem;
   color: var(--yolk-900);
   min-width: 0;
-  /* Allow wrapping only as absolute last resort; compact notation means
-     a single token like ₱1.5M which never needs to wrap in practice */
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-
-/* The <span> that holds the currency string – NO ellipsis, NO nowrap */
 .card-value > span {
   display: block;
   min-width: 0;
-  cursor: default;        /* shows the title tooltip on hover */
+  cursor: default;
 }
 
 .card-sub {
@@ -83,23 +73,82 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   word-break: break-word;
 }
 
-/* Make stat cards equal height inside the grid */
+/* Equal-height stat card grid */
 .stat-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
   gap: 1rem;
-  align-items: stretch;   /* equal height */
+  align-items: stretch;
 }
 .stat-cards .card {
   display: flex;
   flex-direction: column;
 }
 
-/* Tables */
+/* ── Skeleton shimmer ───────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skel {
+  background: linear-gradient(90deg,
+    var(--cream-100) 25%,
+    var(--cream-200) 50%,
+    var(--cream-100) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: .45rem;
+  display: block;
+}
+
+/* Specific skeleton shapes */
+.skel-label  { height: .75rem; width: 50%; margin-bottom: .6rem; }
+.skel-value  { height: 2rem;   width: 80%; margin-bottom: .5rem; }
+.skel-sub    { height: .75rem; width: 65%; }
+.skel-bar    { height: 120px;  width: 100%; }
+.skel-line   { height: .85rem; margin-bottom: .55rem; border-radius: .4rem; }
+.skel-line:last-child { margin-bottom: 0; }
+
+/* When a stat card is in skeleton mode, the real content is display:none via JS.
+   The skeletons act as size placeholders to prevent layout shift. */
+.stat-card-loading {
+  /* Cards keep their padding/size so no layout shift occurs */
+}
+
+/* Fade-in for real data appearing after skeleton */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.dash-loaded { animation: fade-in .3s ease-out both; }
+
+/* Refresh overlay on chart card */
+.refresh-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.65);
+  backdrop-filter: blur(1px);
+  display: grid;
+  place-items: center;
+  border-radius: .9rem;
+  z-index: 10;
+}
+.spinner {
+  width: 1.5rem; height: 1.5rem;
+  border: 3px solid var(--cream-200);
+  border-top-color: var(--yolk-500);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Tables ─────────────────────────────────────────────── */
 .th { text-align: left; padding: .75rem 1rem; font-weight: 600; font-size: .8rem; }
 .td { padding: .75rem 1rem; }
 
-/* Forms */
+/* ── Forms ──────────────────────────────────────────────── */
 .field { display: flex; flex-direction: column; gap: .35rem; }
 .field > span { font-size: .85rem; color: var(--yolk-800); font-weight: 500; }
 .field input, .field select, .input {
@@ -118,7 +167,7 @@ body { font-family: 'Inter', system-ui, sans-serif; }
 }
 .hint { color: var(--yolk-700); font-size: .75rem; }
 
-/* Buttons */
+/* ── Buttons ────────────────────────────────────────────── */
 .btn-primary {
   background: var(--yolk-500);
   color: var(--yolk-900);
@@ -128,8 +177,8 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   border: 1px solid var(--yolk-600);
   transition: filter .15s ease, transform .05s ease;
 }
-.btn-primary:hover { filter: brightness(1.05); }
-.btn-primary:active { transform: translateY(1px); }
+.btn-primary:hover   { filter: brightness(1.05); }
+.btn-primary:active  { transform: translateY(1px); }
 .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
 
 .btn-ghost {
@@ -140,7 +189,7 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   border-radius: .6rem;
   border: 1px solid var(--cream-200);
 }
-.btn-ghost:hover { background: var(--cream-100); }
+.btn-ghost:hover    { background: var(--cream-100); }
 .btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
 
 .btn-danger {
@@ -153,15 +202,11 @@ body { font-family: 'Inter', system-ui, sans-serif; }
 }
 .btn-danger:hover { background: #fecaca; }
 
-/* Modal */
-.modal {
-  border: none;
-  background: transparent;
-  padding: 0;
-}
+/* ── Modal ──────────────────────────────────────────────── */
+.modal { border: none; background: transparent; padding: 0; }
 .modal::backdrop { background: rgba(85,50,8,.45); backdrop-filter: blur(2px); }
 
-/* Toasts */
+/* ── Toasts ─────────────────────────────────────────────── */
 .toast {
   background: #fff;
   border: 1px solid var(--cream-200);
@@ -172,9 +217,15 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   box-shadow: 0 8px 24px -10px rgba(0,0,0,.2);
   animation: toast-in .2s ease-out;
 }
-.toast.error { border-left-color: #dc2626; }
+.toast.error   { border-left-color: #dc2626; }
 .toast.success { border-left-color: #16a34a; }
 @keyframes toast-in { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
 
-/* Loading row */
+/* ── Loading row (tables) ───────────────────────────────── */
 .skeleton { color: var(--yolk-700); opacity: .6; }
+
+/* ── Motion preferences ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .tab, .toast, .skel, .spinner { animation: none; }
+  .skel { background: var(--cream-200); }
+}

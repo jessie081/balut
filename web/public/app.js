@@ -74,6 +74,26 @@
   // ---------- Dashboard ----------
   let weekChart;
   let isRefreshing = false;
+  let dashHasData  = false;   // true after at least one successful load
+
+  // Helper: put a stat card into skeleton mode
+  function skelCard(cardId) {
+    const card = document.getElementById(cardId);
+    card.classList.add('stat-card-loading');
+    card.querySelectorAll('.skel').forEach(s => s.style.display = '');
+    card.querySelectorAll('.card-label, .card-value, .card-sub').forEach(el => el.style.display = 'none');
+  }
+
+  // Helper: reveal a stat card's real content with a fade
+  function revealCard(cardId) {
+    const card = document.getElementById(cardId);
+    card.querySelectorAll('.skel').forEach(s => s.style.display = 'none');
+    card.querySelectorAll('.card-label, .card-value, .card-sub').forEach(el => {
+      el.style.display = '';
+      el.classList.add('dash-loaded');
+    });
+    card.classList.remove('stat-card-loading');
+  }
 
   async function loadDashboard() {
     if (isRefreshing) return;
@@ -83,22 +103,45 @@
     btn.disabled = true;
     btn.textContent = '⏳ Refreshing...';
 
+    const chartOverlay   = document.getElementById('chart-overlay');
+    const chartSkeleton  = document.getElementById('chart-skeleton');
+    const chartCanvas    = document.getElementById('chart-week');
+
+    if (!dashHasData) {
+      // First load — show full skeletons, hide real elements
+      skelCard('card-today');
+      skelCard('card-week');
+      skelCard('card-month');
+      chartSkeleton.style.display = '';
+      chartCanvas.style.display   = 'none';
+    } else {
+      // Subsequent refresh — keep existing data, show spinner overlay only
+      chartOverlay.style.display = '';
+    }
+
     try {
       const d = await api('/dashboard');
-      const setStatCard = (elId, hintId, rev, units, count) => {
+      dashHasData = true;
+
+      // Stat cards
+      const setStatCard = (cardId, elId, hintId, rev, units, count) => {
         const el = document.getElementById(elId);
         el.textContent = pesoCompact(rev);
-        el.title = pesoFull(rev);              // full value on hover
+        el.title = pesoFull(rev);
         document.getElementById(hintId).textContent = `${units} units · ${count} sales`;
+        revealCard(cardId);
       };
-      setStatCard('stat-today',  'stat-today-units',  d.today.revenue,  d.today.units,  d.today.count);
-      setStatCard('stat-week',   'stat-week-units',   d.week.revenue,   d.week.units,   d.week.count);
-      setStatCard('stat-month',  'stat-month-units',  d.month.revenue,  d.month.units,  d.month.count);
+      setStatCard('card-today',  'stat-today',  'stat-today-units',  d.today.revenue,  d.today.units,  d.today.count);
+      setStatCard('card-week',   'stat-week',   'stat-week-units',   d.week.revenue,   d.week.units,   d.week.count);
+      setStatCard('card-month',  'stat-month',  'stat-month-units',  d.month.revenue,  d.month.units,  d.month.count);
 
-      // chart
+      // Chart
       const labels = d.last7.map(r => new Date(r.day + 'T00:00:00Z').toLocaleDateString('en-PH', { weekday: 'short' }));
       const values = d.last7.map(r => r.revenue);
-      const ctx = document.getElementById('chart-week').getContext('2d');
+      chartSkeleton.style.display = 'none';
+      chartCanvas.style.display   = '';
+      chartCanvas.classList.add('dash-loaded');
+      const ctx = chartCanvas.getContext('2d');
       if (weekChart) weekChart.destroy();
       weekChart = new Chart(ctx, {
         type: 'bar',
@@ -121,26 +164,42 @@
         }
       });
 
-      // low stock
+      // Low stock
       const ul = document.getElementById('low-stock');
       if (!d.lowStock.length) {
-        ul.innerHTML = '<li class="py-3 text-yolk-700/60">All stocked up 🎉</li>';
+        ul.innerHTML = '<li class="py-3 dash-loaded" style="color:var(--yolk-700);opacity:.6">All stocked up 🎉</li>';
       } else {
         ul.innerHTML = d.lowStock.map(p => `
-          <li class="py-2 flex items-center justify-between">
+          <li class="py-2 flex items-center justify-between dash-loaded">
             <span>${escape(p.name)}</span>
-            <span class="font-semibold ${p.stock === 0 ? 'text-red-600' : 'text-yolk-800'}">${p.stock} left</span>
+            <span class="font-semibold" style="color:${p.stock === 0 ? '#dc2626' : 'var(--yolk-800)'}">${p.stock} left</span>
           </li>`).join('');
       }
 
-      // Last updated timestamp
+      // Timestamp
       const ts = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       document.getElementById('dash-last-updated').textContent = `Updated ${ts}`;
 
     } catch (e) {
-      toast(e.message, 'error');
+      if (!dashHasData) {
+        // First-load failure — replace skeletons with error state
+        ['card-today', 'card-week', 'card-month'].forEach(id => {
+          const card = document.getElementById(id);
+          card.querySelectorAll('.skel').forEach(s => s.style.display = 'none');
+          card.classList.remove('stat-card-loading');
+        });
+        chartSkeleton.style.display = 'none';
+      }
+      // Non-intrusive toast with Retry button
+      const el = document.createElement('div');
+      el.className = 'toast error';
+      el.innerHTML = `${escape(e.message)} <button onclick="this.closest('.toast').remove();document.getElementById('refresh-dash').click()" style="margin-left:.5rem;font-weight:600;text-decoration:underline;background:none;border:none;cursor:pointer;color:inherit">Retry</button>`;
+      toastsEl.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; }, 5000);
+      setTimeout(() => el.remove(), 5500);
     } finally {
       isRefreshing = false;
+      chartOverlay.style.display = 'none';
       const btn = document.getElementById('refresh-dash');
       btn.disabled = false;
       btn.textContent = '↻ Refresh';
