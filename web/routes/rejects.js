@@ -37,7 +37,7 @@ router.get('/', async (req, res, next) => {
 // POST /api/rejects – atomic: insert reject + deduct stock
 router.post('/', async (req, res, next) => {
   try {
-    const { productId, quantity, reason, notes } = req.body || {};
+    const { productId, quantity, reason, customReason, notes } = req.body || {};
 
     const pid = Number(productId);
     const qty = Number(quantity);
@@ -47,6 +47,11 @@ router.post('/', async (req, res, next) => {
     if (!reason || !String(reason).trim()) throw httpError(400, 'reason is required');
     const reasonStr = String(reason).trim();
     if (!VALID_REASONS.includes(reasonStr)) throw httpError(400, `reason must be one of: ${VALID_REASONS.join(', ')}`);
+
+    const finalReason = reasonStr === 'Other'
+      ? String(customReason || '').trim()
+      : reasonStr;
+    if (!finalReason) throw httpError(400, 'customReason is required when reason is Other');
 
     const notesStr = notes ? String(notes).trim().slice(0, 500) : null;
 
@@ -64,7 +69,7 @@ router.post('/', async (req, res, next) => {
       const ins = await tx.run(
         `INSERT INTO rejects (product_id, product_name, quantity, reason, notes)
          VALUES (?, ?, ?, ?, ?)`,
-        pid, product.name, qty, reasonStr, notesStr
+        pid, product.name, qty, finalReason, notesStr
       );
       return ins.lastInsertRowid;
     });

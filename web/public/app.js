@@ -310,6 +310,10 @@
       document.getElementById('sale-price').dataset.touched = '';
       document.getElementById('sale-qty').value = 1;
       await loadProductsForSale();
+      if (dashHasData) loadDashboard();
+      loadInventory();
+      loadHistory();
+      loadProductsForReject();
     } catch (err) { toast(err.message, 'error'); }
     finally { btn.disabled = false; }
   });
@@ -366,6 +370,9 @@
         await api('/products/' + delId, { method: 'DELETE' });
         toast('Product deleted', 'success');
         loadInventory();
+        loadProductsForSale();
+        loadProductsForReject();
+        if (dashHasData) loadDashboard();
       } catch (err) { toast(err.message, 'error'); }
     }
   });
@@ -400,6 +407,9 @@
       dlg.close();
       toast('Saved', 'success');
       loadInventory();
+      loadProductsForSale();
+      loadProductsForReject();
+      if (dashHasData) loadDashboard();
     } catch (err) { toast(err.message, 'error'); }
   });
 
@@ -466,15 +476,14 @@
     e.preventDefault();
     const productId = Number(document.getElementById('reject-product').value);
     const quantity  = Number(document.getElementById('reject-qty').value);
-    let reason      = document.getElementById('reject-reason').value;
+    const reason    = document.getElementById('reject-reason').value;
+    const customReason = document.getElementById('reject-other').value.trim();
     const notes     = document.getElementById('reject-notes').value.trim() || null;
 
     if (!productId) return toast('Pick a product first', 'error');
     if (!reason)    return toast('Reason is required', 'error');
-    if (reason === 'Other') {
-      const custom = document.getElementById('reject-other').value.trim();
-      if (!custom) return toast('Custom reason is required when selecting "Other"', 'error');
-      reason = custom;
+    if (reason === 'Other' && !customReason) {
+      return toast('Custom reason is required when selecting "Other"', 'error');
     }
 
     const sel   = document.getElementById('reject-product');
@@ -484,9 +493,9 @@
 
     const btn = e.submitter; btn.disabled = true;
     try {
-      await api('/rejects', { method: 'POST', body: { productId, quantity, reason, notes } });
+      await api('/rejects', { method: 'POST', body: { productId, quantity, reason, customReason, notes } });
       const prodName = opt.textContent.split('(')[0].trim();
-      toast(`✓ Reject recorded. ${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason}.`, 'success');
+      toast(`Reject recorded. ${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason === 'Other' ? customReason : reason}.`, 'success');
       e.target.reset();
       if (dashHasData) loadDashboard();
       loadInventory();
