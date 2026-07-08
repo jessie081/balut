@@ -119,7 +119,14 @@
           <p class="text-yolk-700/70 text-sm">Stock is reduced automatically.</p>
         </header>
 
-        <form id="sale-form" class="card grid md:grid-cols-2 gap-4 max-w-3xl">
+        <div id="sell-skeleton" class="card grid md:grid-cols-2 gap-4 max-w-3xl">
+          <div class="md:col-span-2"><span class="skel skel-label" style="width:4rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+          <div><span class="skel skel-label" style="width:4rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+          <div><span class="skel skel-label" style="width:5rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+          <div class="md:col-span-2"><span class="skel skel-label" style="width:6rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+        </div>
+
+        <form id="sale-form" class="card grid md:grid-cols-2 gap-4 max-w-3xl" style="display:none">
           <label class="field md:col-span-2">
             <span>Product</span>
             <select id="sale-product" required></select>
@@ -169,7 +176,9 @@
               </tr>
             </thead>
             <tbody id="inv-body" class="divide-y divide-cream-200">
-              <tr><td colspan="4" class="td text-yolk-700/60">Loading…</td></tr>
+              <tr><td class="td" colspan="4"><span class="skel skel-line" style="width:55%"></span></td></tr>
+              <tr><td class="td" colspan="4"><span class="skel skel-line" style="width:40%"></span></td></tr>
+              <tr><td class="td" colspan="4"><span class="skel skel-line" style="width:65%"></span></td></tr>
             </tbody>
           </table>
         </div>
@@ -182,7 +191,14 @@
           <p class="text-yolk-700/70 text-sm">Record spoiled or damaged eggs. Stock is deducted but revenue is <strong>not</strong> affected.</p>
         </header>
 
-        <form id="reject-form" class="card grid md:grid-cols-2 gap-4 max-w-3xl">
+        <div id="reject-skeleton" class="card grid md:grid-cols-2 gap-4 max-w-3xl">
+          <div class="md:col-span-2"><span class="skel skel-label" style="width:4rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+          <div><span class="skel skel-label" style="width:5rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+          <div><span class="skel skel-label" style="width:4rem;margin-bottom:.4rem"></span><span class="skel" style="height:2.4rem;display:block;border-radius:.55rem"></span></div>
+          <div class="md:col-span-2"><span class="skel skel-label" style="width:3rem;margin-bottom:.4rem"></span><span class="skel" style="height:4rem;display:block;border-radius:.55rem"></span></div>
+        </div>
+
+        <form id="reject-form" class="card grid md:grid-cols-2 gap-4 max-w-3xl" style="display:none">
           <label class="field md:col-span-2">
             <span>Product</span>
             <select id="reject-product" required></select>

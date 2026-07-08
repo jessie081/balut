@@ -4,25 +4,38 @@
 
   const pesoFull = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Compact formatter used on dashboard cards.
-  // Always uses compact notation so the value never overflows the card.
-  // Small values (< 1000) show two decimal places for precision.
   const compactFmt = new Intl.NumberFormat('en-PH', { notation: 'compact', maximumFractionDigits: 1 });
   const pesoCompact = (n) => {
     const v = Number(n || 0);
-    if (Math.abs(v) < 1000) return pesoFull(v);   // ₱25.00, ₱294.50
-    return '₱' + compactFmt.format(v);             // ₱1.5K, ₱20M, ₱2.4T …
+    if (Math.abs(v) < 1000) return pesoFull(v);
+    return '₱' + compactFmt.format(v);
   };
 
-  // Keep the original peso for tables / forms
   const peso = pesoFull;
+
   const fmtDate = (s) => {
     if (!s) return '';
-    // SQLite returns 'YYYY-MM-DD HH:MM:SS' in UTC. Treat as UTC and render local.
     const iso = s.includes('T') ? s : s.replace(' ', 'T') + 'Z';
     const d = new Date(iso);
     return d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
   };
+
+  // ---------- Helpers ----------
+  function toSqlDate(d) {
+    const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return z.toISOString().slice(0, 19).replace('T', ' ');
+  }
+
+  function escape(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function skelRows(cols, count = 3) {
+    const widths = ['55%', '40%', '65%'];
+    return Array.from({ length: count }, (_, i) =>
+      `<tr><td class="td" colspan="${cols}"><span class="skel skel-line" style="width:${widths[i % 3]}"></span></td></tr>`
+    ).join('');
+  }
 
   // ---------- API ----------
   async function api(path, opts = {}) {
@@ -46,6 +59,16 @@
     toastsEl.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; }, 2400);
     setTimeout(() => el.remove(), 2800);
+  }
+
+  function toastRetry(msg, retryFn) {
+    const el = document.createElement('div');
+    el.className = 'toast error';
+    el.innerHTML = `${escape(msg)} <button style="margin-left:.5rem;font-weight:600;text-decoration:underline;background:none;border:none;cursor:pointer;color:inherit">Retry</button>`;
+    el.querySelector('button').addEventListener('click', () => { el.remove(); retryFn(); });
+    toastsEl.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; }, 5000);
+    setTimeout(() => el.remove(), 5500);
   }
 
   // ---------- Tabs ----------
@@ -75,9 +98,8 @@
   // ---------- Dashboard ----------
   let weekChart;
   let isRefreshing = false;
-  let dashHasData  = false;   // true after at least one successful load
+  let dashHasData  = false;
 
-  // Helper: put a stat card into skeleton mode
   function skelCard(cardId) {
     const card = document.getElementById(cardId);
     card.classList.add('stat-card-loading');
@@ -85,7 +107,6 @@
     card.querySelectorAll('.card-label, .card-value, .card-sub').forEach(el => el.style.display = 'none');
   }
 
-  // Helper: reveal a stat card's real content with a fade
   function revealCard(cardId) {
     const card = document.getElementById(cardId);
     card.querySelectorAll('.skel').forEach(s => s.style.display = 'none');
@@ -104,19 +125,15 @@
     btn.disabled = true;
     btn.textContent = '⏳ Refreshing...';
 
-    const chartOverlay   = document.getElementById('chart-overlay');
-    const chartSkeleton  = document.getElementById('chart-skeleton');
-    const chartCanvas    = document.getElementById('chart-week');
+    const chartOverlay  = document.getElementById('chart-overlay');
+    const chartSkeleton = document.getElementById('chart-skeleton');
+    const chartCanvas   = document.getElementById('chart-week');
 
     if (!dashHasData) {
-      // First load — show full skeletons, hide real elements
-      skelCard('card-today');
-      skelCard('card-week');
-      skelCard('card-month');
+      skelCard('card-today'); skelCard('card-week'); skelCard('card-month');
       chartSkeleton.style.display = '';
       chartCanvas.style.display   = 'none';
     } else {
-      // Subsequent refresh — keep existing data, show spinner overlay only
       chartOverlay.style.display = '';
     }
 
@@ -124,7 +141,6 @@
       const d = await api('/dashboard');
       dashHasData = true;
 
-      // Stat cards
       const setStatCard = (cardId, elId, hintId, rev, units, count) => {
         const el = document.getElementById(elId);
         el.textContent = pesoCompact(rev);
@@ -132,11 +148,10 @@
         document.getElementById(hintId).textContent = `${units} units · ${count} sales`;
         revealCard(cardId);
       };
-      setStatCard('card-today',  'stat-today',  'stat-today-units',  d.today.revenue,  d.today.units,  d.today.count);
-      setStatCard('card-week',   'stat-week',   'stat-week-units',   d.week.revenue,   d.week.units,   d.week.count);
-      setStatCard('card-month',  'stat-month',  'stat-month-units',  d.month.revenue,  d.month.units,  d.month.count);
+      setStatCard('card-today', 'stat-today', 'stat-today-units', d.today.revenue, d.today.units, d.today.count);
+      setStatCard('card-week',  'stat-week',  'stat-week-units',  d.week.revenue,  d.week.units,  d.week.count);
+      setStatCard('card-month', 'stat-month', 'stat-month-units', d.month.revenue, d.month.units, d.month.count);
 
-      // Chart
       const labels = d.last7.map(r => new Date(r.day + 'T00:00:00Z').toLocaleDateString('en-PH', { weekday: 'short' }));
       const values = d.last7.map(r => r.revenue);
       chartSkeleton.style.display = 'none';
@@ -146,26 +161,10 @@
       if (weekChart) weekChart.destroy();
       weekChart = new Chart(ctx, {
         type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Revenue',
-            data: values,
-            backgroundColor: '#f5b400',
-            borderRadius: 6,
-            maxBarThickness: 48
-          }]
-        },
-        options: {
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: true, ticks: { callback: v => '₱' + v } },
-            x: { grid: { display: false } }
-          }
-        }
+        data: { labels, datasets: [{ label: 'Revenue', data: values, backgroundColor: '#f5b400', borderRadius: 6, maxBarThickness: 48 }] },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => '₱' + v } }, x: { grid: { display: false } } } }
       });
 
-      // Low stock
       const ul = document.getElementById('low-stock');
       if (!d.lowStock.length) {
         ul.innerHTML = '<li class="py-3 dash-loaded" style="color:var(--yolk-700);opacity:.6">All stocked up 🎉</li>';
@@ -177,13 +176,11 @@
           </li>`).join('');
       }
 
-      // Timestamp
       const ts = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       document.getElementById('dash-last-updated').textContent = `Updated ${ts}`;
 
     } catch (e) {
       if (!dashHasData) {
-        // First-load failure — replace skeletons with error state
         ['card-today', 'card-week', 'card-month'].forEach(id => {
           const card = document.getElementById(id);
           card.querySelectorAll('.skel').forEach(s => s.style.display = 'none');
@@ -191,17 +188,10 @@
         });
         chartSkeleton.style.display = 'none';
       }
-      // Non-intrusive toast with Retry button
-      const el = document.createElement('div');
-      el.className = 'toast error';
-      el.innerHTML = `${escape(e.message)} <button onclick="this.closest('.toast').remove();document.getElementById('refresh-dash').click()" style="margin-left:.5rem;font-weight:600;text-decoration:underline;background:none;border:none;cursor:pointer;color:inherit">Retry</button>`;
-      toastsEl.appendChild(el);
-      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; }, 5000);
-      setTimeout(() => el.remove(), 5500);
+      toastRetry(e.message, loadDashboard);
     } finally {
       isRefreshing = false;
       chartOverlay.style.display = 'none';
-      const btn = document.getElementById('refresh-dash');
       btn.disabled = false;
       btn.textContent = '↻ Refresh';
     }
@@ -210,7 +200,12 @@
 
   // ---------- Sell ----------
   let productCache = [];
+
   async function loadProductsForSale() {
+    const skel = document.getElementById('sell-skeleton');
+    const form = document.getElementById('sale-form');
+    skel.style.display = '';
+    form.style.display = 'none';
     try {
       productCache = await api('/products');
       const sel = document.getElementById('sale-product');
@@ -218,7 +213,14 @@
         ? productCache.map(p => `<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${escape(p.name)} — ${peso(p.price)} (${p.stock} in stock)</option>`).join('')
         : '<option value="">No products – add one in Inventory</option>';
       syncSaleFromSelection();
-    } catch (e) { toast(e.message, 'error'); }
+      skel.style.display = 'none';
+      form.style.display = '';
+      form.classList.add('dash-loaded');
+    } catch (e) {
+      skel.style.display = 'none';
+      form.style.display = '';
+      toast(e.message, 'error');
+    }
   }
 
   function syncSaleFromSelection() {
@@ -238,20 +240,21 @@
     document.getElementById('sale-qty').max = stock || '';
     updateSaleTotal();
   }
+
   function updateSaleTotal() {
     const q = Number(document.getElementById('sale-qty').value) || 0;
     const p = Number(document.getElementById('sale-price').value) || 0;
     document.getElementById('sale-total').textContent = peso(q * p);
   }
+
   const MAX_PRICE = 1_000_000_000;
 
   function validatePrice(val) {
     const v = Number(val);
-    if (val === '' || val === null || val === undefined) return '';        // empty – let required attr handle
-    if (isNaN(v) || !isFinite(v))   return 'Unit price must be a number.';
-    if (v < 0.01)                   return 'Unit price must be at least ₱0.01.';
-    if (v > MAX_PRICE)              return `Unit price cannot exceed ${peso(MAX_PRICE)}.`;
-    // reject more than 2 decimal places
+    if (val === '' || val === null || val === undefined) return '';
+    if (isNaN(v) || !isFinite(v)) return 'Unit price must be a number.';
+    if (v < 0.01) return 'Unit price must be at least ₱0.01.';
+    if (v > MAX_PRICE) return `Unit price cannot exceed ${peso(MAX_PRICE)}.`;
     if (Math.round(v * 100) !== v * 100) return 'Unit price can have at most 2 decimal places.';
     return '';
   }
@@ -264,7 +267,6 @@
     errEl.style.display = msg ? 'block' : 'none';
     el.style.borderColor = msg ? '#dc2626' : '';
     el.style.boxShadow   = msg ? '0 0 0 3px rgba(220,38,38,.2)' : '';
-    // toggle submit button
     const submit = document.querySelector('#sale-form [type="submit"]');
     if (submit) submit.disabled = !!msg;
     return msg;
@@ -287,18 +289,16 @@
 
   document.getElementById('sale-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const productId = Number(document.getElementById('sale-product').value);
-    const quantity  = Number(document.getElementById('sale-qty').value);
-    const unitPrice = Number(document.getElementById('sale-price').value);
+    const productId    = Number(document.getElementById('sale-product').value);
+    const quantity     = Number(document.getElementById('sale-qty').value);
+    const unitPrice    = Number(document.getElementById('sale-price').value);
     const customerName = document.getElementById('sale-customer').value.trim() || null;
 
     if (!productId) return toast('Pick a product first', 'error');
-
-    // Final price guard before sending to API
     const priceError = validatePrice(String(unitPrice));
     if (priceError) { applyPriceValidation(); return toast(priceError, 'error'); }
 
-    const opt = document.getElementById('sale-product').options[document.getElementById('sale-product').selectedIndex];
+    const opt   = document.getElementById('sale-product').options[document.getElementById('sale-product').selectedIndex];
     const stock = Number(opt?.dataset.stock || 0);
     if (quantity > stock) return toast(`Only ${stock} in stock`, 'error');
 
@@ -317,7 +317,6 @@
   document.getElementById('sale-form').addEventListener('reset', () => {
     setTimeout(() => {
       document.getElementById('sale-price').dataset.touched = '';
-      // Clear any price validation error on reset
       const errEl = document.getElementById('sale-price-error');
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       const priceEl = document.getElementById('sale-price');
@@ -329,159 +328,18 @@
     }, 0);
   });
 
-  // ---------- Rejects ----------
-  async function loadProductsForReject() {
-    try {
-      const products = await api('/products');
-      const sel = document.getElementById('reject-product');
-      sel.innerHTML = products.length
-        ? products.map(p => `<option value="${p.id}" data-stock="${p.stock}">${escape(p.name)} (${p.stock} in stock)</option>`).join('')
-        : '<option value="">No products – add one in Inventory</option>';
-      syncRejectFromSelection();
-    } catch (e) { toast(e.message, 'error'); }
-  }
-
-  function syncRejectFromSelection() {
-    const sel = document.getElementById('reject-product');
-    const opt = sel.options[sel.selectedIndex];
-    if (!opt || !opt.value) {
-      document.getElementById('reject-stock-hint').textContent = '';
-      return;
-    }
-    const stock = Number(opt.dataset.stock);
-    document.getElementById('reject-stock-hint').textContent = `Available: ${stock} egg${stock !== 1 ? 's' : ''}`;
-    document.getElementById('reject-qty').max = stock || '';
-  }
-
-  document.getElementById('reject-product').addEventListener('change', syncRejectFromSelection);
-  document.getElementById('reject-reason').addEventListener('change', (e) => {
-    const wrap = document.getElementById('reject-other-wrap');
-    wrap.style.display = e.target.value === 'Other' ? '' : 'none';
-  });
-
-  document.getElementById('reject-qty').addEventListener('input', () => {
-    const el = document.getElementById('reject-qty');
-    const sel = document.getElementById('reject-product');
-    const opt = sel.options[sel.selectedIndex];
-    const stock = Number(opt?.dataset.stock || 0);
-    const qty = Number(el.value);
-    const errEl = document.getElementById('reject-qty-error');
-    const submitBtn = document.getElementById('reject-submit');
-    if (qty > stock) {
-      errEl.textContent = `Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`;
-      errEl.style.display = 'block';
-      submitBtn.disabled = true;
-    } else {
-      errEl.textContent = '';
-      errEl.style.display = 'none';
-      submitBtn.disabled = false;
-    }
-  });
-
-  document.getElementById('reject-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const productId = Number(document.getElementById('reject-product').value);
-    const quantity  = Number(document.getElementById('reject-qty').value);
-    let reason = document.getElementById('reject-reason').value;
-    const notes = document.getElementById('reject-notes').value.trim() || null;
-
-    if (!productId) return toast('Pick a product first', 'error');
-    if (!reason) return toast('Reason is required', 'error');
-    if (reason === 'Other') {
-      const custom = document.getElementById('reject-other').value.trim();
-      if (!custom) return toast('Custom reason is required when selecting "Other"', 'error');
-      reason = custom;
-    }
-
-    const sel = document.getElementById('reject-product');
-    const opt = sel.options[sel.selectedIndex];
-    const stock = Number(opt?.dataset.stock || 0);
-    if (quantity > stock) return toast(`Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`, 'error');
-
-    const btn = e.submitter; btn.disabled = true;
-    try {
-      await api('/rejects', { method: 'POST', body: { productId, quantity, reason, notes } });
-      const prodName = opt.textContent.split('(')[0].trim();
-      toast(`✓ Reject recorded successfully.\n${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason}.`, 'success');
-      e.target.reset();
-      // Auto-refresh Dashboard, Inventory, History
-      if (dashHasData) loadDashboard();
-      if (tabs.includes('inventory')) loadInventory();
-      if (tabs.includes('history')) loadHistory();
-      await loadProductsForReject();
-    } catch (err) { toast(err.message, 'error'); }
-    finally { btn.disabled = false; }
-  });
-
-  document.getElementById('reject-form').addEventListener('reset', () => {
-    setTimeout(() => {
-      document.getElementById('reject-other-wrap').style.display = 'none';
-      document.getElementById('reject-qty-error').textContent = '';
-      document.getElementById('reject-qty-error').style.display = 'none';
-      document.getElementById('reject-submit').disabled = false;
-      syncRejectFromSelection();
-    }, 0);
-  });
-
-  // ---------- History (merged sales + rejects) ----------
-  async function loadHistory() {
-    const list = document.getElementById('hist-list');
-    const range = document.getElementById('hist-range').value;
-    const params = new URLSearchParams();
-
-    const now = new Date();
-    if (range === 'today') {
-      const start = new Date(now); start.setHours(0,0,0,0);
-      params.set('from', toSqlDate(start));
-    } else if (range === 'week') {
-      const start = new Date(now); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
-      params.set('from', toSqlDate(start));
-    } else if (range === 'month') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      params.set('from', toSqlDate(start));
-    }
-
-    list.innerHTML = '<div class="card skeleton" style="height:4rem"></div>'.repeat(3);
-    try {
-      const events = await api('/history' + (params.toString() ? '?' + params : ''));
-      if (!events.length) {
-        list.innerHTML = '<div class="card text-center py-6" style="color:var(--yolk-700);opacity:.6">No transactions in this range.</div>';
-        return;
-      }
-      list.innerHTML = events.map(e => {
-        const isSale = e.type === 'sale';
-        const badge = isSale
-          ? '<span class="badge badge-sale">🟢 Sale</span>'
-          : '<span class="badge badge-reject">🔴 Reject</span>';
-        const details = isSale
-          ? `<div style="font-size:.95rem;margin-top:.3rem"><strong>Qty:</strong> ${e.quantity} · <strong>Unit:</strong> ${peso(e.unitPrice)} · <strong>Total:</strong> ${peso(e.total)}</div>${e.customerName ? `<div style="font-size:.85rem;margin-top:.25rem;color:var(--yolk-700)"><strong>Customer:</strong> ${escape(e.customerName)}</div>` : ''}`
-          : `<div style="font-size:.95rem;margin-top:.3rem"><strong>Qty:</strong> ${e.quantity} · <strong>Reason:</strong> ${escape(e.reason)}</div>${e.notes ? `<div style="font-size:.85rem;margin-top:.25rem;color:var(--yolk-700)"><em>${escape(e.notes)}</em></div>` : ''}`;
-        return `
-          <div class="card history-card">
-            <div>${badge}</div>
-            <div>
-              <div style="font-weight:600;font-size:1rem">${escape(e.productName)}</div>
-              ${details}
-            </div>
-            <div style="font-size:.85rem;color:var(--yolk-700);white-space:nowrap">${fmtDate(e.eventDate)}</div>
-          </div>`;
-      }).join('');
-    } catch (e) { toast(e.message, 'error'); }
-  }
-  document.getElementById('hist-range').addEventListener('change', loadHistory);
-
   // ---------- Inventory ----------
   async function loadInventory() {
     const body = document.getElementById('inv-body');
-    body.innerHTML = '<tr><td colspan="4" class="td skeleton">Loading…</td></tr>';
+    body.innerHTML = skelRows(4);
     try {
       const items = await api('/products');
       if (!items.length) {
-        body.innerHTML = '<tr><td colspan="4" class="td text-yolk-700/60">No products yet. Click “Add product”.</td></tr>';
+        body.innerHTML = '<tr><td colspan="4" class="td" style="color:var(--yolk-700);opacity:.6">No products yet. Click "Add product".</td></tr>';
         return;
       }
       body.innerHTML = items.map(p => `
-        <tr>
+        <tr class="dash-loaded">
           <td class="td font-medium">${escape(p.name)}</td>
           <td class="td text-right">${peso(p.price)}</td>
           <td class="td text-right ${p.stock < 5 ? 'text-red-600 font-semibold' : ''}">${p.stock}</td>
@@ -490,10 +348,12 @@
             <button class="btn-danger" data-delete="${p.id}">Delete</button>
           </td>
         </tr>`).join('');
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="4" class="td" style="color:#dc2626">${escape(e.message)}</td></tr>`;
+      toast(e.message, 'error');
+    }
   }
 
-  // Inventory delegated actions
   document.getElementById('inv-body').addEventListener('click', async (e) => {
     const editId = e.target.getAttribute('data-edit');
     const delId  = e.target.getAttribute('data-delete');
@@ -510,17 +370,16 @@
     }
   });
 
-  // Product dialog
   const dlg = document.getElementById('product-dialog');
   document.getElementById('add-product-btn').addEventListener('click', () => openProductDialog());
   dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
 
   function openProductDialog(product) {
     document.getElementById('product-dialog-title').textContent = product ? 'Edit product' : 'Add product';
-    document.getElementById('product-id').value     = product?.id ?? '';
-    document.getElementById('product-name').value   = product?.name ?? '';
-    document.getElementById('product-price').value  = product?.price ?? '';
-    document.getElementById('product-stock').value  = product?.stock ?? 0;
+    document.getElementById('product-id').value    = product?.id ?? '';
+    document.getElementById('product-name').value  = product?.name ?? '';
+    document.getElementById('product-price').value = product?.price ?? '';
+    document.getElementById('product-stock').value = product?.stock ?? 0;
     dlg.showModal();
   }
 
@@ -537,23 +396,169 @@
 
     try {
       if (id) await api('/products/' + id, { method: 'PUT', body: { name, price, stock } });
-      else    await api('/products',          { method: 'POST', body: { name, price, stock } });
+      else    await api('/products',       { method: 'POST', body: { name, price, stock } });
       dlg.close();
       toast('Saved', 'success');
       loadInventory();
     } catch (err) { toast(err.message, 'error'); }
   });
 
-  // ---------- Helpers ----------
-  function toSqlDate(d) {
-    // Convert local Date to UTC 'YYYY-MM-DD HH:MM:SS' for SQLite comparisons.
-    const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-    return z.toISOString().slice(0,19).replace('T',' ');
+  // ---------- Rejects ----------
+  async function loadProductsForReject() {
+    const skel = document.getElementById('reject-skeleton');
+    const form = document.getElementById('reject-form');
+    skel.style.display = '';
+    form.style.display = 'none';
+    try {
+      const products = await api('/products');
+      const sel = document.getElementById('reject-product');
+      sel.innerHTML = products.length
+        ? products.map(p => `<option value="${p.id}" data-stock="${p.stock}">${escape(p.name)} (${p.stock} in stock)</option>`).join('')
+        : '<option value="">No products – add one in Inventory</option>';
+      syncRejectFromSelection();
+      skel.style.display = 'none';
+      form.style.display = '';
+      form.classList.add('dash-loaded');
+    } catch (e) {
+      skel.style.display = 'none';
+      form.style.display = '';
+      toast(e.message, 'error');
+    }
   }
 
-  function escape(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  function syncRejectFromSelection() {
+    const sel = document.getElementById('reject-product');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) {
+      document.getElementById('reject-stock-hint').textContent = '';
+      return;
+    }
+    const stock = Number(opt.dataset.stock);
+    document.getElementById('reject-stock-hint').textContent = `Available: ${stock} egg${stock !== 1 ? 's' : ''}`;
+    document.getElementById('reject-qty').max = stock || '';
   }
+
+  document.getElementById('reject-product').addEventListener('change', syncRejectFromSelection);
+  document.getElementById('reject-reason').addEventListener('change', (e) => {
+    document.getElementById('reject-other-wrap').style.display = e.target.value === 'Other' ? '' : 'none';
+  });
+
+  document.getElementById('reject-qty').addEventListener('input', () => {
+    const el       = document.getElementById('reject-qty');
+    const sel      = document.getElementById('reject-product');
+    const opt      = sel.options[sel.selectedIndex];
+    const stock    = Number(opt?.dataset.stock || 0);
+    const qty      = Number(el.value);
+    const errEl    = document.getElementById('reject-qty-error');
+    const submitBtn= document.getElementById('reject-submit');
+    if (qty > stock) {
+      errEl.textContent = `Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`;
+      errEl.style.display = 'block';
+      submitBtn.disabled = true;
+    } else {
+      errEl.textContent = '';
+      errEl.style.display = 'none';
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('reject-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productId = Number(document.getElementById('reject-product').value);
+    const quantity  = Number(document.getElementById('reject-qty').value);
+    let reason      = document.getElementById('reject-reason').value;
+    const notes     = document.getElementById('reject-notes').value.trim() || null;
+
+    if (!productId) return toast('Pick a product first', 'error');
+    if (!reason)    return toast('Reason is required', 'error');
+    if (reason === 'Other') {
+      const custom = document.getElementById('reject-other').value.trim();
+      if (!custom) return toast('Custom reason is required when selecting "Other"', 'error');
+      reason = custom;
+    }
+
+    const sel   = document.getElementById('reject-product');
+    const opt   = sel.options[sel.selectedIndex];
+    const stock = Number(opt?.dataset.stock || 0);
+    if (quantity > stock) return toast(`Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`, 'error');
+
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      await api('/rejects', { method: 'POST', body: { productId, quantity, reason, notes } });
+      const prodName = opt.textContent.split('(')[0].trim();
+      toast(`✓ Reject recorded. ${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason}.`, 'success');
+      e.target.reset();
+      if (dashHasData) loadDashboard();
+      loadInventory();
+      loadHistory();
+      await loadProductsForReject();
+    } catch (err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; }
+  });
+
+  document.getElementById('reject-form').addEventListener('reset', () => {
+    setTimeout(() => {
+      document.getElementById('reject-other-wrap').style.display = 'none';
+      document.getElementById('reject-qty-error').textContent = '';
+      document.getElementById('reject-qty-error').style.display = 'none';
+      document.getElementById('reject-submit').disabled = false;
+      syncRejectFromSelection();
+    }, 0);
+  });
+
+  // ---------- History ----------
+  async function loadHistory() {
+    const list   = document.getElementById('hist-list');
+    const range  = document.getElementById('hist-range').value;
+    const params = new URLSearchParams();
+    const now    = new Date();
+
+    if (range === 'today') {
+      const start = new Date(now); start.setHours(0,0,0,0);
+      params.set('from', toSqlDate(start));
+    } else if (range === 'week') {
+      const start = new Date(now); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
+      params.set('from', toSqlDate(start));
+    } else if (range === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      params.set('from', toSqlDate(start));
+    }
+
+    // Skeleton cards while loading
+    list.innerHTML = Array.from({ length: 3 }, () =>
+      `<div class="card" style="padding:1rem"><span class="skel skel-line" style="width:30%;margin-bottom:.6rem"></span><span class="skel skel-line" style="width:70%"></span></div>`
+    ).join('');
+
+    try {
+      const events = await api('/history' + (params.toString() ? '?' + params : ''));
+      if (!events.length) {
+        list.innerHTML = '<div class="card" style="text-align:center;padding:2rem;color:var(--yolk-700);opacity:.6">No transactions in this range.</div>';
+        return;
+      }
+      list.innerHTML = events.map(ev => {
+        const isSale = ev.type === 'sale';
+        const badge  = isSale
+          ? '<span class="badge badge-sale">🟢 Sale</span>'
+          : '<span class="badge badge-reject">🔴 Reject</span>';
+        const details = isSale
+          ? `<div style="font-size:.95rem;margin-top:.3rem"><strong>Qty:</strong> ${ev.quantity} · <strong>Unit:</strong> ${peso(ev.unitPrice)} · <strong>Total:</strong> ${peso(ev.total)}</div>${ev.customerName ? `<div style="font-size:.85rem;margin-top:.25rem;color:var(--yolk-700)"><strong>Customer:</strong> ${escape(ev.customerName)}</div>` : ''}`
+          : `<div style="font-size:.95rem;margin-top:.3rem"><strong>Qty:</strong> ${ev.quantity} · <strong>Reason:</strong> ${escape(ev.reason)}</div>${ev.notes ? `<div style="font-size:.85rem;margin-top:.25rem;color:var(--yolk-700)"><em>${escape(ev.notes)}</em></div>` : ''}`;
+        return `
+          <div class="card history-card dash-loaded">
+            <div>${badge}</div>
+            <div>
+              <div style="font-weight:600;font-size:1rem">${escape(ev.productName)}</div>
+              ${details}
+            </div>
+            <div style="font-size:.85rem;color:var(--yolk-700);white-space:nowrap">${fmtDate(ev.eventDate)}</div>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      list.innerHTML = `<div class="card" style="color:#dc2626;padding:1rem">${escape(e.message)}</div>`;
+      toast(e.message, 'error');
+    }
+  }
+  document.getElementById('hist-range').addEventListener('change', loadHistory);
 
   // ---------- Boot ----------
   const start = (location.hash || '#dashboard').slice(1);
