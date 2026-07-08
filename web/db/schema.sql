@@ -22,3 +22,17 @@ CREATE TABLE IF NOT EXISTS sales (
 
 CREATE INDEX IF NOT EXISTS idx_sales_date    ON sales(sale_date);
 CREATE INDEX IF NOT EXISTS idx_sales_product ON sales(product_id);
+
+CREATE TABLE IF NOT EXISTS rejects (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id   INTEGER NOT NULL,
+  product_name TEXT    NOT NULL,
+  quantity     INTEGER NOT NULL CHECK (quantity > 0),
+  reason       TEXT    NOT NULL,
+  notes        TEXT,
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rejects_date    ON rejects(created_at);
+CREATE INDEX IF NOT EXISTS idx_rejects_product ON rejects(product_id);

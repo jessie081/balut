@@ -42,6 +42,7 @@
         <button data-tab="dashboard" class="nav-btn">Dashboard</button>
         <button data-tab="sell"      class="nav-btn">Sell</button>
         <button data-tab="inventory" class="nav-btn">Inventory</button>
+        <button data-tab="rejects"   class="nav-btn nav-btn-reject">⚠ Rejects</button>
         <button data-tab="history"   class="nav-btn">History</button>
       </nav>
     </aside>
@@ -174,12 +175,61 @@
         </div>
       </section>
 
+      <!-- Reject Eggs -->
+      <section id="tab-rejects" class="tab hidden space-y-6">
+        <header>
+          <h1 class="text-2xl md:text-3xl font-bold">Reject Eggs</h1>
+          <p class="text-yolk-700/70 text-sm">Record spoiled or damaged eggs. Stock is deducted but revenue is <strong>not</strong> affected.</p>
+        </header>
+
+        <form id="reject-form" class="card grid md:grid-cols-2 gap-4 max-w-3xl">
+          <label class="field md:col-span-2">
+            <span>Product</span>
+            <select id="reject-product" required></select>
+            <small id="reject-stock-hint" class="hint"></small>
+          </label>
+          <label class="field">
+            <span>Reject quantity</span>
+            <input id="reject-qty" type="number" min="1" step="1" value="1" required />
+            <small id="reject-qty-error" class="hint" style="color:#dc2626;display:none"></small>
+          </label>
+          <label class="field">
+            <span>Reason</span>
+            <select id="reject-reason" required>
+              <option value="">— Select a reason —</option>
+              <option value="Bugok">Bugok</option>
+              <option value="Cracked Shell">Cracked Shell</option>
+              <option value="Damaged">Damaged</option>
+              <option value="Customer Return">Customer Return</option>
+              <option value="Expired">Expired</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <div id="reject-other-wrap" class="field md:col-span-2" style="display:none">
+            <span>Custom reason</span>
+            <input id="reject-other" type="text" maxlength="100" placeholder="Describe the reason…" />
+          </div>
+          <label class="field md:col-span-2">
+            <span>Notes <span style="font-weight:400;opacity:.7">(optional)</span></span>
+            <textarea id="reject-notes" rows="2" maxlength="500"
+              style="border:1px solid var(--cream-200);border-radius:.55rem;padding:.55rem .75rem;font:inherit;resize:vertical;outline:none;transition:border-color .15s,box-shadow .15s"
+              onfocus="this.style.borderColor='var(--yolk-500)';this.style.boxShadow='0 0 0 3px rgba(245,180,0,.25)'"
+              onblur="this.style.borderColor='';this.style.boxShadow=''"
+              placeholder="Additional details…"></textarea>
+          </label>
+          <div class="md:col-span-2 flex justify-end gap-2 pt-2 border-t border-cream-200">
+            <button type="reset" class="btn-ghost">Clear</button>
+            <button type="submit" id="reject-submit" class="btn-reject">⚠ Record Reject</button>
+          </div>
+        </form>
+      </section>
+
       <!-- History -->
       <section id="tab-history" class="tab hidden space-y-6">
         <header class="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h1 class="text-2xl md:text-3xl font-bold">Sales history</h1>
-            <p class="text-yolk-700/70 text-sm">Most recent first.</p>
+            <h1 class="text-2xl md:text-3xl font-bold">History</h1>
+            <p class="text-yolk-700/70 text-sm">Sales and rejects, newest first.</p>
           </div>
           <div class="flex gap-2 flex-wrap">
             <select id="hist-range" class="input">
@@ -192,22 +242,10 @@
           </div>
         </header>
 
-        <div class="card overflow-x-auto p-0">
-          <table class="w-full text-sm">
-            <thead class="bg-cream-100 text-yolk-800">
-              <tr>
-                <th class="th">Date</th>
-                <th class="th">Product</th>
-                <th class="th text-right">Qty</th>
-                <th class="th text-right">Unit ₱</th>
-                <th class="th text-right">Total ₱</th>
-                <th class="th">Customer</th>
-              </tr>
-            </thead>
-            <tbody id="hist-body" class="divide-y divide-cream-200">
-              <tr><td colspan="6" class="td text-yolk-700/60">Loading…</td></tr>
-            </tbody>
-          </table>
+        <div id="hist-list" class="space-y-3">
+          <div class="card skeleton" style="height:4rem"></div>
+          <div class="card skeleton" style="height:4rem"></div>
+          <div class="card skeleton" style="height:4rem"></div>
         </div>
       </section>
     </main>

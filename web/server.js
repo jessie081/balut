@@ -8,6 +8,8 @@ const compression = require('compression');
 
 const productsRouter = require('./routes/products');
 const salesRouter = require('./routes/sales');
+const rejectsRouter = require('./routes/rejects');
+const historyRouter = require('./routes/history');
 const dashboardRouter = require('./routes/dashboard');
 
 const app = express();
@@ -23,6 +25,8 @@ if (process.env.NODE_ENV !== 'test') {
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 app.use('/api/products', productsRouter);
 app.use('/api/sales', salesRouter);
+app.use('/api/rejects', rejectsRouter);
+app.use('/api/history', historyRouter);
 app.use('/api/dashboard', dashboardRouter);
 
 // Static frontend

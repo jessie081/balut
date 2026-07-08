@@ -49,7 +49,7 @@
   }
 
   // ---------- Tabs ----------
-  const tabs = ['dashboard', 'sell', 'inventory', 'history'];
+  const tabs = ['dashboard', 'sell', 'inventory', 'rejects', 'history'];
   const navBtns = document.querySelectorAll('#nav .nav-btn');
 
   function setTab(name) {
@@ -68,6 +68,7 @@
     if (name === 'dashboard') loadDashboard();
     if (name === 'sell')      loadProductsForSale();
     if (name === 'inventory') loadInventory();
+    if (name === 'rejects')   loadProductsForReject();
     if (name === 'history')   loadHistory();
   }
 
@@ -328,6 +329,147 @@
     }, 0);
   });
 
+  // ---------- Rejects ----------
+  async function loadProductsForReject() {
+    try {
+      const products = await api('/products');
+      const sel = document.getElementById('reject-product');
+      sel.innerHTML = products.length
+        ? products.map(p => `<option value="${p.id}" data-stock="${p.stock}">${escape(p.name)} (${p.stock} in stock)</option>`).join('')
+        : '<option value="">No products – add one in Inventory</option>';
+      syncRejectFromSelection();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function syncRejectFromSelection() {
+    const sel = document.getElementById('reject-product');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) {
+      document.getElementById('reject-stock-hint').textContent = '';
+      return;
+    }
+    const stock = Number(opt.dataset.stock);
+    document.getElementById('reject-stock-hint').textContent = `Available: ${stock} egg${stock !== 1 ? 's' : ''}`;
+    document.getElementById('reject-qty').max = stock || '';
+  }
+
+  document.getElementById('reject-product').addEventListener('change', syncRejectFromSelection);
+  document.getElementById('reject-reason').addEventListener('change', (e) => {
+    const wrap = document.getElementById('reject-other-wrap');
+    wrap.style.display = e.target.value === 'Other' ? '' : 'none';
+  });
+
+  document.getElementById('reject-qty').addEventListener('input', () => {
+    const el = document.getElementById('reject-qty');
+    const sel = document.getElementById('reject-product');
+    const opt = sel.options[sel.selectedIndex];
+    const stock = Number(opt?.dataset.stock || 0);
+    const qty = Number(el.value);
+    const errEl = document.getElementById('reject-qty-error');
+    const submitBtn = document.getElementById('reject-submit');
+    if (qty > stock) {
+      errEl.textContent = `Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`;
+      errEl.style.display = 'block';
+      submitBtn.disabled = true;
+    } else {
+      errEl.textContent = '';
+      errEl.style.display = 'none';
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('reject-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productId = Number(document.getElementById('reject-product').value);
+    const quantity  = Number(document.getElementById('reject-qty').value);
+    let reason = document.getElementById('reject-reason').value;
+    const notes = document.getElementById('reject-notes').value.trim() || null;
+
+    if (!productId) return toast('Pick a product first', 'error');
+    if (!reason) return toast('Reason is required', 'error');
+    if (reason === 'Other') {
+      const custom = document.getElementById('reject-other').value.trim();
+      if (!custom) return toast('Custom reason is required when selecting "Other"', 'error');
+      reason = custom;
+    }
+
+    const sel = document.getElementById('reject-product');
+    const opt = sel.options[sel.selectedIndex];
+    const stock = Number(opt?.dataset.stock || 0);
+    if (quantity > stock) return toast(`Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`, 'error');
+
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      await api('/rejects', { method: 'POST', body: { productId, quantity, reason, notes } });
+      const prodName = opt.textContent.split('(')[0].trim();
+      toast(`✓ Reject recorded successfully.\n${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason}.`, 'success');
+      e.target.reset();
+      // Auto-refresh Dashboard, Inventory, History
+      if (dashHasData) loadDashboard();
+      if (tabs.includes('inventory')) loadInventory();
+      if (tabs.includes('history')) loadHistory();
+      await loadProductsForReject();
+    } catch (err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; }
+  });
+
+  document.getElementById('reject-form').addEventListener('reset', () => {
+    setTimeout(() => {
+      document.getElementById('reject-other-wrap').style.display = 'none';
+      document.getElementById('reject-qty-error').textContent = '';
+      document.getElementById('reject-qty-error').style.display = 'none';
+      document.getElementById('reject-submit').disabled = false;
+      syncRejectFromSelection();
+    }, 0);
+  });
+
+  // ---------- History (merged sales + rejects) ----------
+  async function loadHistory() {
+    const list = document.getElementById('hist-list');
+    const range = document.getElementById('hist-range').value;
+    const params = new URLSearchParams();
+
+    const now = new Date();
+    if (range === 'today') {
+      const start = new Date(now); start.setHours(0,0,0,0);
+      params.set('from', toSqlDate(start));
+    } else if (range === 'week') {
+      const start = new Date(now); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
+      params.set('from', toSqlDate(start));
+    } else if (range === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      params.set('from', toSqlDate(start));
+    }
+
+    list.innerHTML = '<div class="card skeleton" style="height:4rem"></div>'.repeat(3);
+    try {
+      const events = await api('/history' + (params.toString() ? '?' + params : ''));
+      if (!events.length) {
+        list.innerHTML = '<div class="card text-center py-6" style="color:var(--yolk-700);opacity:.6">No transactions in this range.</div>';
+        return;
+      }
+      list.innerHTML = events.map(e => {
+        const isSale = e.type === 'sale';
+        const badge = isSale
+          ? '<span class="badge badge-sale">🟢 Sale</span>'
+          : '<span class="badge badge-reject">🔴 Reject</span>';
+        const details = isSale
+          ? `<div style="font-size:.95rem;margin-top:.3rem"><strong>Qty:</strong> ${e.quantity} · <strong>Unit:</strong> ${peso(e.unitPrice)} · <strong>Total:</strong> ${peso(e.total)}</div>${e.customerName ? `<div style="font-size:.85rem;margin-top:.25rem;color:var(--yolk-700)"><strong>Customer:</strong> ${escape(e.customerName)}</div>` : ''}`
+          : `<div style="font-size:.95rem;margin-top:.3rem"><strong>Qty:</strong> ${e.quantity} · <strong>Reason:</strong> ${escape(e.reason)}</div>${e.notes ? `<div style="font-size:.85rem;margin-top:.25rem;color:var(--yolk-700)"><em>${escape(e.notes)}</em></div>` : ''}`;
+        return `
+          <div class="card history-card">
+            <div>${badge}</div>
+            <div>
+              <div style="font-weight:600;font-size:1rem">${escape(e.productName)}</div>
+              ${details}
+            </div>
+            <div style="font-size:.85rem;color:var(--yolk-700);white-space:nowrap">${fmtDate(e.eventDate)}</div>
+          </div>`;
+      }).join('');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  document.getElementById('hist-range').addEventListener('change', loadHistory);
+
   // ---------- Inventory ----------
   async function loadInventory() {
     const body = document.getElementById('inv-body');
@@ -402,51 +544,13 @@
     } catch (err) { toast(err.message, 'error'); }
   });
 
-  // ---------- History ----------
-  async function loadHistory() {
-    const body = document.getElementById('hist-body');
-    const range = document.getElementById('hist-range').value;
-    const params = new URLSearchParams();
-
-    const now = new Date();
-    if (range === 'today') {
-      const start = new Date(now); start.setHours(0,0,0,0);
-      params.set('from', toSqlDate(start));
-    } else if (range === 'week') {
-      const start = new Date(now); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
-      params.set('from', toSqlDate(start));
-    } else if (range === 'month') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      params.set('from', toSqlDate(start));
-    }
-
-    body.innerHTML = '<tr><td colspan="6" class="td skeleton">Loading…</td></tr>';
-    try {
-      const sales = await api('/sales' + (params.toString() ? '?' + params : ''));
-      if (!sales.length) {
-        body.innerHTML = '<tr><td colspan="6" class="td text-yolk-700/60">No sales in this range.</td></tr>';
-        return;
-      }
-      body.innerHTML = sales.map(s => `
-        <tr>
-          <td class="td whitespace-nowrap">${fmtDate(s.saleDate)}</td>
-          <td class="td font-medium">${escape(s.productName)}</td>
-          <td class="td text-right">${s.quantity}</td>
-          <td class="td text-right">${peso(s.unitPrice)}</td>
-          <td class="td text-right font-semibold">${peso(s.total)}</td>
-          <td class="td">${escape(s.customerName || '—')}</td>
-        </tr>`).join('');
-    } catch (e) { toast(e.message, 'error'); }
-  }
-  document.getElementById('hist-range').addEventListener('change', loadHistory);
-
+  // ---------- Helpers ----------
   function toSqlDate(d) {
     // Convert local Date to UTC 'YYYY-MM-DD HH:MM:SS' for SQLite comparisons.
     const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
     return z.toISOString().slice(0,19).replace('T',' ');
   }
 
-  // ---------- Helpers ----------
   function escape(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   }
