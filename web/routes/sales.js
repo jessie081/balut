@@ -68,7 +68,10 @@ router.post('/', async (req, res, next) => {
     const price = unitPrice === undefined || unitPrice === null || unitPrice === ''
       ? Number(product.price)
       : Number(unitPrice);
-    if (!Number.isFinite(price) || price < 0) throw httpError(400, 'unitPrice must be a non-negative number');
+    if (!Number.isFinite(price) || price < 0)
+      throw httpError(400, 'unitPrice must be a non-negative number');
+    if (price > 1_000_000_000)
+      throw httpError(400, 'unitPrice cannot exceed ₱1,000,000,000');
 
     const total = +(price * qty).toFixed(2);
 

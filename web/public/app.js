@@ -183,9 +183,47 @@
     const p = Number(document.getElementById('sale-price').value) || 0;
     document.getElementById('sale-total').textContent = peso(q * p);
   }
+  const MAX_PRICE = 1_000_000_000;
+
+  function validatePrice(val) {
+    const v = Number(val);
+    if (val === '' || val === null || val === undefined) return '';        // empty – let required attr handle
+    if (isNaN(v) || !isFinite(v))   return 'Unit price must be a number.';
+    if (v < 0.01)                   return 'Unit price must be at least ₱0.01.';
+    if (v > MAX_PRICE)              return `Unit price cannot exceed ${peso(MAX_PRICE)}.`;
+    // reject more than 2 decimal places
+    if (Math.round(v * 100) !== v * 100) return 'Unit price can have at most 2 decimal places.';
+    return '';
+  }
+
+  function applyPriceValidation() {
+    const el    = document.getElementById('sale-price');
+    const errEl = document.getElementById('sale-price-error');
+    const msg   = validatePrice(el.value);
+    errEl.textContent = msg;
+    errEl.style.display = msg ? 'block' : 'none';
+    el.style.borderColor = msg ? '#dc2626' : '';
+    el.style.boxShadow   = msg ? '0 0 0 3px rgba(220,38,38,.2)' : '';
+    // toggle submit button
+    const submit = document.querySelector('#sale-form [type="submit"]');
+    if (submit) submit.disabled = !!msg;
+    return msg;
+  }
+
   document.getElementById('sale-product').addEventListener('change', syncSaleFromSelection);
   document.getElementById('sale-qty').addEventListener('input', updateSaleTotal);
-  document.getElementById('sale-price').addEventListener('input', (e) => { e.target.dataset.touched = '1'; updateSaleTotal(); });
+  document.getElementById('sale-price').addEventListener('input', (e) => {
+    e.target.dataset.touched = '1';
+    updateSaleTotal();
+    applyPriceValidation();
+  });
+  document.getElementById('sale-price').addEventListener('blur', () => {
+    const el = document.getElementById('sale-price');
+    if (el.value && !applyPriceValidation()) {
+      const v = Number(el.value);
+      if (isFinite(v)) el.value = v.toFixed(2);
+    }
+  });
 
   document.getElementById('sale-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -195,6 +233,10 @@
     const customerName = document.getElementById('sale-customer').value.trim() || null;
 
     if (!productId) return toast('Pick a product first', 'error');
+
+    // Final price guard before sending to API
+    const priceError = validatePrice(String(unitPrice));
+    if (priceError) { applyPriceValidation(); return toast(priceError, 'error'); }
 
     const opt = document.getElementById('sale-product').options[document.getElementById('sale-product').selectedIndex];
     const stock = Number(opt?.dataset.stock || 0);
@@ -213,7 +255,18 @@
   });
 
   document.getElementById('sale-form').addEventListener('reset', () => {
-    setTimeout(() => { document.getElementById('sale-price').dataset.touched = ''; syncSaleFromSelection(); }, 0);
+    setTimeout(() => {
+      document.getElementById('sale-price').dataset.touched = '';
+      // Clear any price validation error on reset
+      const errEl = document.getElementById('sale-price-error');
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      const priceEl = document.getElementById('sale-price');
+      priceEl.style.borderColor = '';
+      priceEl.style.boxShadow = '';
+      const submit = document.querySelector('#sale-form [type="submit"]');
+      if (submit) submit.disabled = false;
+      syncSaleFromSelection();
+    }, 0);
   });
 
   // ---------- Inventory ----------
