@@ -53,42 +53,34 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   color: var(--yolk-700);
   text-transform: uppercase;
   letter-spacing: .04em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Stat card value – clamp from 1rem up to 1.9rem, never overflows */
+/* Stat card value – clamp font size, always compact, never truncates */
 .card-value {
-  font-size: clamp(1rem, 4cqw, 1.9rem);
+  font-size: clamp(1rem, 4vw, 1.9rem);
   font-weight: 700;
   margin-top: .25rem;
   color: var(--yolk-900);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
-  /* fallback for browsers without container query units */
-  font-size: clamp(1rem, 4vw, 1.9rem);
+  /* Allow wrapping only as absolute last resort; compact notation means
+     a single token like ₱1.5M which never needs to wrap in practice */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-/* The <span> that actually holds the currency string */
+/* The <span> that holds the currency string – NO ellipsis, NO nowrap */
 .card-value > span {
   display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
+  cursor: default;        /* shows the title tooltip on hover */
 }
 
 .card-sub {
   font-size: .85rem;
   color: var(--yolk-700);
   margin-top: .25rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
+  word-break: break-word;
 }
 
 /* Make stat cards equal height inside the grid */

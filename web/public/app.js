@@ -4,15 +4,14 @@
 
   const pesoFull = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Compact display for dashboard cards: ₱1.5K, ₱2.3M, ₱4T etc.
-  // Values under 10 000 show the full number; above that we compact.
+  // Compact formatter used on dashboard cards.
+  // Always uses compact notation so the value never overflows the card.
+  // Small values (< 1000) show two decimal places for precision.
+  const compactFmt = new Intl.NumberFormat('en-PH', { notation: 'compact', maximumFractionDigits: 1 });
   const pesoCompact = (n) => {
     const v = Number(n || 0);
-    if (Math.abs(v) < 10000) return pesoFull(v);
-    return '₱' + new Intl.NumberFormat('en-PH', {
-      notation: 'compact',
-      maximumFractionDigits: 1
-    }).format(v);
+    if (Math.abs(v) < 1000) return pesoFull(v);   // ₱25.00, ₱294.50
+    return '₱' + compactFmt.format(v);             // ₱1.5K, ₱20M, ₱2.4T …
   };
 
   // Keep the original peso for tables / forms
