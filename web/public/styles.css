@@ -149,6 +149,7 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   border: 1px solid var(--cream-200);
 }
 .btn-ghost:hover { background: var(--cream-100); }
+.btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
 
 .btn-danger {
   background: #fee2e2;

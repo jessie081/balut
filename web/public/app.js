@@ -74,7 +74,16 @@
 
   // ---------- Dashboard ----------
   let weekChart;
+  let isRefreshing = false;
+
   async function loadDashboard() {
+    if (isRefreshing) return;
+    isRefreshing = true;
+
+    const btn = document.getElementById('refresh-dash');
+    btn.disabled = true;
+    btn.textContent = '⏳ Refreshing...';
+
     try {
       const d = await api('/dashboard');
       const setStatCard = (elId, hintId, rev, units, count) => {
@@ -124,7 +133,19 @@
             <span class="font-semibold ${p.stock === 0 ? 'text-red-600' : 'text-yolk-800'}">${p.stock} left</span>
           </li>`).join('');
       }
-    } catch (e) { toast(e.message, 'error'); }
+
+      // Last updated timestamp
+      const ts = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('dash-last-updated').textContent = `Updated ${ts}`;
+
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      isRefreshing = false;
+      const btn = document.getElementById('refresh-dash');
+      btn.disabled = false;
+      btn.textContent = '↻ Refresh';
+    }
   }
   document.getElementById('refresh-dash').addEventListener('click', loadDashboard);
 
