@@ -2,7 +2,21 @@
 (() => {
   'use strict';
 
-  const peso = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pesoFull = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Compact display for dashboard cards: ₱1.5K, ₱2.3M, ₱4T etc.
+  // Values under 10 000 show the full number; above that we compact.
+  const pesoCompact = (n) => {
+    const v = Number(n || 0);
+    if (Math.abs(v) < 10000) return pesoFull(v);
+    return '₱' + new Intl.NumberFormat('en-PH', {
+      notation: 'compact',
+      maximumFractionDigits: 1
+    }).format(v);
+  };
+
+  // Keep the original peso for tables / forms
+  const peso = pesoFull;
   const fmtDate = (s) => {
     if (!s) return '';
     // SQLite returns 'YYYY-MM-DD HH:MM:SS' in UTC. Treat as UTC and render local.
@@ -63,12 +77,15 @@
   async function loadDashboard() {
     try {
       const d = await api('/dashboard');
-      document.getElementById('stat-today').textContent = peso(d.today.revenue);
-      document.getElementById('stat-week').textContent  = peso(d.week.revenue);
-      document.getElementById('stat-month').textContent = peso(d.month.revenue);
-      document.getElementById('stat-today-units').textContent = `${d.today.units} units · ${d.today.count} sales`;
-      document.getElementById('stat-week-units').textContent  = `${d.week.units} units · ${d.week.count} sales`;
-      document.getElementById('stat-month-units').textContent = `${d.month.units} units · ${d.month.count} sales`;
+      const setStatCard = (elId, hintId, rev, units, count) => {
+        const el = document.getElementById(elId);
+        el.textContent = pesoCompact(rev);
+        el.title = pesoFull(rev);              // full value on hover
+        document.getElementById(hintId).textContent = `${units} units · ${count} sales`;
+      };
+      setStatCard('stat-today',  'stat-today-units',  d.today.revenue,  d.today.units,  d.today.count);
+      setStatCard('stat-week',   'stat-week-units',   d.week.revenue,   d.week.units,   d.week.count);
+      setStatCard('stat-month',  'stat-month-units',  d.month.revenue,  d.month.units,  d.month.count);
 
       // chart
       const labels = d.last7.map(r => new Date(r.day + 'T00:00:00Z').toLocaleDateString('en-PH', { weekday: 'short' }));

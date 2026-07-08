@@ -44,10 +44,64 @@ body { font-family: 'Inter', system-ui, sans-serif; }
   border-radius: .9rem;
   padding: 1.1rem 1.2rem;
   box-shadow: 0 1px 2px rgba(85,50,8,.06), 0 8px 24px -12px rgba(85,50,8,.18);
+  /* Prevent any child from punching through */
+  overflow: hidden;
+  min-width: 0;
 }
-.card-label { font-size: .8rem; color: var(--yolk-700); text-transform: uppercase; letter-spacing: .04em; }
-.card-value { font-size: 1.9rem; font-weight: 700; margin-top: .25rem; color: var(--yolk-900); }
-.card-sub   { font-size: .85rem; color: var(--yolk-700); margin-top: .25rem; }
+.card-label {
+  font-size: .8rem;
+  color: var(--yolk-700);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stat card value – clamp from 1rem up to 1.9rem, never overflows */
+.card-value {
+  font-size: clamp(1rem, 4cqw, 1.9rem);
+  font-weight: 700;
+  margin-top: .25rem;
+  color: var(--yolk-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  /* fallback for browsers without container query units */
+  font-size: clamp(1rem, 4vw, 1.9rem);
+}
+
+/* The <span> that actually holds the currency string */
+.card-value > span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.card-sub {
+  font-size: .85rem;
+  color: var(--yolk-700);
+  margin-top: .25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Make stat cards equal height inside the grid */
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 1rem;
+  align-items: stretch;   /* equal height */
+}
+.stat-cards .card {
+  display: flex;
+  flex-direction: column;
+}
 
 /* Tables */
 .th { text-align: left; padding: .75rem 1rem; font-weight: 600; font-size: .8rem; }
