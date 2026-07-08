@@ -1,6 +1,6 @@
 'use strict';
 
-// GET /api/history?from=...&to=...
+// GET /api/history?from=...&to=...&type=...
 // Returns sales and rejects merged, newest first.
 // Each row has a `type` field: 'sale' or 'reject'.
 
@@ -11,11 +11,13 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const { from, to } = req.query;
-    const dateFilters = [];
-    const params = [];
-    if (from) { dateFilters.push('>= ?'); params.push(String(from)); }
-    if (to)   { dateFilters.push('<= ?'); params.push(String(to)); }
+    const { from, to, type } = req.query;
+    const filterType = String(type || 'all').toLowerCase();
+    if (!['all', 'sale', 'reject'].includes(filterType)) {
+      const err = new Error('type must be one of: all, sale, reject');
+      err.status = 400;
+      throw err;
+    }
 
     const buildWhere = (col) => {
       const parts = [];
@@ -29,7 +31,7 @@ router.get('/', async (req, res, next) => {
     if (to)   salesParams.push(String(to));
     const rejectParams = [...salesParams];
 
-    const sales = await db.all(`
+    const sales = filterType === 'reject' ? [] : await db.all(`
       SELECT 'sale'       AS type,
              id,
              product_name AS productName,
@@ -44,7 +46,7 @@ router.get('/', async (req, res, next) => {
       ${buildWhere('sale_date')}
     `, ...salesParams);
 
-    const rejects = await db.all(`
+    const rejects = filterType === 'sale' ? [] : await db.all(`
       SELECT 'reject'     AS type,
              id,
              product_name AS productName,

@@ -71,6 +71,46 @@
     setTimeout(() => el.remove(), 5500);
   }
 
+  function setActionLoading(control, loadingText) {
+    if (!control) return () => {};
+
+    const originalHtml = control.innerHTML;
+    const originalWidth = control.style.width;
+    const width = Math.ceil(control.getBoundingClientRect().width);
+    if (width) control.style.width = width + 'px';
+
+    control.classList.add('is-loading');
+    control.setAttribute('aria-busy', 'true');
+    if ('disabled' in control) control.disabled = true;
+    if (control.tagName === 'A') {
+      control.setAttribute('aria-disabled', 'true');
+      control.tabIndex = -1;
+    }
+    control.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span>${escape(loadingText)}</span>`;
+
+    return () => {
+      control.classList.remove('is-loading');
+      control.removeAttribute('aria-busy');
+      if ('disabled' in control) control.disabled = false;
+      if (control.tagName === 'A') {
+        control.removeAttribute('aria-disabled');
+        control.removeAttribute('tabindex');
+      }
+      control.innerHTML = originalHtml;
+      if (originalWidth) control.style.width = originalWidth;
+      else control.style.removeProperty('width');
+    };
+  }
+
+  async function withActionLoading(control, loadingText, work) {
+    const clearLoading = setActionLoading(control, loadingText);
+    try {
+      return await work();
+    } finally {
+      clearLoading();
+    }
+  }
+
   // ---------- Tabs ----------
   const tabs = ['dashboard', 'sell', 'inventory', 'rejects', 'history'];
   const navBtns = document.querySelectorAll('#nav .nav-btn');
@@ -117,13 +157,12 @@
     card.classList.remove('stat-card-loading');
   }
 
-  async function loadDashboard() {
+  async function loadDashboard(options = {}) {
+    const { trigger = null, showToast = false } = options;
     if (isRefreshing) return;
     isRefreshing = true;
 
-    const btn = document.getElementById('refresh-dash');
-    btn.disabled = true;
-    btn.textContent = '⏳ Refreshing...';
+    const clearLoading = trigger ? setActionLoading(trigger, 'Refreshing...') : null;
 
     const chartOverlay  = document.getElementById('chart-overlay');
     const chartSkeleton = document.getElementById('chart-skeleton');
@@ -178,6 +217,7 @@
 
       const ts = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       document.getElementById('dash-last-updated').textContent = `Updated ${ts}`;
+      if (showToast) toast('Dashboard refreshed.', 'success');
 
     } catch (e) {
       if (!dashHasData) {
@@ -188,15 +228,14 @@
         });
         chartSkeleton.style.display = 'none';
       }
-      toastRetry(e.message, loadDashboard);
+      toastRetry(e.message, () => loadDashboard({ trigger, showToast }));
     } finally {
       isRefreshing = false;
       chartOverlay.style.display = 'none';
-      btn.disabled = false;
-      btn.textContent = '↻ Refresh';
+      if (clearLoading) clearLoading();
     }
   }
-  document.getElementById('refresh-dash').addEventListener('click', loadDashboard);
+  document.getElementById('refresh-dash').addEventListener('click', (e) => loadDashboard({ trigger: e.currentTarget, showToast: true }));
 
   // ---------- Sell ----------
   let productCache = [];
@@ -302,20 +341,21 @@
     const stock = Number(opt?.dataset.stock || 0);
     if (quantity > stock) return toast(`Only ${stock} in stock`, 'error');
 
-    const btn = e.submitter; btn.disabled = true;
+    const btn = e.submitter;
     try {
-      await api('/sales', { method: 'POST', body: { productId, quantity, unitPrice, customerName } });
-      toast('Sale recorded', 'success');
-      e.target.reset();
-      document.getElementById('sale-price').dataset.touched = '';
-      document.getElementById('sale-qty').value = 1;
-      await loadProductsForSale();
-      if (dashHasData) loadDashboard();
-      loadInventory();
-      loadHistory();
-      loadProductsForReject();
+      await withActionLoading(btn, 'Recording...', async () => {
+        await api('/sales', { method: 'POST', body: { productId, quantity, unitPrice, customerName } });
+        toast('Sale recorded successfully.', 'success');
+        e.target.reset();
+        document.getElementById('sale-price').dataset.touched = '';
+        document.getElementById('sale-qty').value = 1;
+        await loadProductsForSale();
+        if (dashHasData) loadDashboard();
+        loadInventory();
+        loadHistory();
+        loadProductsForReject();
+      });
     } catch (err) { toast(err.message, 'error'); }
-    finally { btn.disabled = false; }
   });
 
   document.getElementById('sale-form').addEventListener('reset', () => {
@@ -366,13 +406,16 @@
       openProductDialog(product);
     } else if (delId) {
       if (!confirm('Delete this product? Sales for it must be removed first.')) return;
+      const btn = e.target.closest('button');
       try {
-        await api('/products/' + delId, { method: 'DELETE' });
-        toast('Product deleted', 'success');
-        loadInventory();
-        loadProductsForSale();
-        loadProductsForReject();
-        if (dashHasData) loadDashboard();
+        await withActionLoading(btn, 'Deleting...', async () => {
+          await api('/products/' + delId, { method: 'DELETE' });
+          toast('Product deleted successfully.', 'success');
+          loadInventory();
+          loadProductsForSale();
+          loadProductsForReject();
+          if (dashHasData) loadDashboard();
+        });
       } catch (err) { toast(err.message, 'error'); }
     }
   });
@@ -401,15 +444,18 @@
     if (!Number.isFinite(price) || price < 0) return toast('Invalid price', 'error');
     if (!Number.isInteger(stock) || stock < 0) return toast('Invalid stock', 'error');
 
+    const btn = e.submitter;
     try {
-      if (id) await api('/products/' + id, { method: 'PUT', body: { name, price, stock } });
-      else    await api('/products',       { method: 'POST', body: { name, price, stock } });
-      dlg.close();
-      toast('Saved', 'success');
-      loadInventory();
-      loadProductsForSale();
-      loadProductsForReject();
-      if (dashHasData) loadDashboard();
+      await withActionLoading(btn, 'Saving...', async () => {
+        if (id) await api('/products/' + id, { method: 'PUT', body: { name, price, stock } });
+        else    await api('/products',       { method: 'POST', body: { name, price, stock } });
+        dlg.close();
+        toast('Inventory updated.', 'success');
+        loadInventory();
+        loadProductsForSale();
+        loadProductsForReject();
+        if (dashHasData) loadDashboard();
+      });
     } catch (err) { toast(err.message, 'error'); }
   });
 
@@ -491,18 +537,19 @@
     const stock = Number(opt?.dataset.stock || 0);
     if (quantity > stock) return toast(`Only ${stock} egg${stock !== 1 ? 's' : ''} are currently available.`, 'error');
 
-    const btn = e.submitter; btn.disabled = true;
+    const btn = e.submitter;
     try {
-      await api('/rejects', { method: 'POST', body: { productId, quantity, reason, customReason, notes } });
-      const prodName = opt.textContent.split('(')[0].trim();
-      toast(`Reject recorded. ${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason === 'Other' ? customReason : reason}.`, 'success');
-      e.target.reset();
-      if (dashHasData) loadDashboard();
-      loadInventory();
-      loadHistory();
-      await loadProductsForReject();
+      await withActionLoading(btn, 'Recording...', async () => {
+        await api('/rejects', { method: 'POST', body: { productId, quantity, reason, customReason, notes } });
+        const prodName = opt.textContent.split('(')[0].trim();
+        toast(`Reject recorded successfully. ${quantity} ${prodName} egg${quantity !== 1 ? 's' : ''} marked as ${reason === 'Other' ? customReason : reason}.`, 'success');
+        e.target.reset();
+        if (dashHasData) loadDashboard();
+        loadInventory();
+        loadHistory();
+        await loadProductsForReject();
+      });
     } catch (err) { toast(err.message, 'error'); }
-    finally { btn.disabled = false; }
   });
 
   document.getElementById('reject-form').addEventListener('reset', () => {
@@ -519,6 +566,7 @@
   async function loadHistory() {
     const list   = document.getElementById('hist-list');
     const range  = document.getElementById('hist-range').value;
+    const type   = document.getElementById('hist-type').value;
     const params = new URLSearchParams();
     const now    = new Date();
 
@@ -532,6 +580,7 @@
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
       params.set('from', toSqlDate(start));
     }
+    if (type && type !== 'all') params.set('type', type);
 
     // Skeleton cards while loading
     list.innerHTML = Array.from({ length: 3 }, () =>
@@ -541,7 +590,7 @@
     try {
       const events = await api('/history' + (params.toString() ? '?' + params : ''));
       if (!events.length) {
-        list.innerHTML = '<div class="card" style="text-align:center;padding:2rem;color:var(--yolk-700);opacity:.6">No transactions in this range.</div>';
+        list.innerHTML = '<div class="card" style="text-align:center;padding:2rem;color:var(--yolk-700);opacity:.6">No matching history in this filter.</div>';
         return;
       }
       list.innerHTML = events.map(ev => {
@@ -568,6 +617,35 @@
     }
   }
   document.getElementById('hist-range').addEventListener('change', loadHistory);
+  document.getElementById('hist-type').addEventListener('change', loadHistory);
+  document.getElementById('hist-export').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const link = e.currentTarget;
+    if (link.classList.contains('is-loading')) return;
+
+    try {
+      await withActionLoading(link, 'Exporting...', async () => {
+        const res = await fetch(link.href);
+        if (!res.ok) throw new Error(`Export failed (${res.status})`);
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement('a');
+        const disposition = res.headers.get('content-disposition') || '';
+        const filenameMatch = /filename="?([^";]+)"?/i.exec(disposition);
+
+        downloadLink.href = url;
+        downloadLink.download = filenameMatch ? filenameMatch[1] : 'balut-sales.csv';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        downloadLink.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast('CSV exported successfully.', 'success');
+      });
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
 
   // ---------- Boot ----------
   const start = (location.hash || '#dashboard').slice(1);
